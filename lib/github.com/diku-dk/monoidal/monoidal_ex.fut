@@ -10,16 +10,7 @@ module max_sums : { val red [n] : [n]u8 -> f64 } = {
 
   open monoidal
 
-  module optone : monoid with i = del f64 with o = f64 =
-    with_gen (one f64) {
-      type i = del f64
-      def ERR_gen_expecting_E = false
-      def gen (i:del f64) =
-        match i case #E x -> x
-		case #Del _ -> assert ERR_gen_expecting_E (([])[0])
-    }
-
-  module groups = chunk (max f64) optone { def del_ign (c:u8) : bool = c == '|' }
+  module groups = chunk (max f64) (optone f64) { def del_ign (c:u8) : bool = c == '|' }
   module items = chunk (sum f64) groups { def del_ign (c:u8) : bool = c == ',' }
   module M = chunk (float f64) items { def del_ign (_ :u8) : bool = false }
 
@@ -67,16 +58,7 @@ module max_avgs : { val red [n] : [n]u8 -> f64 } = {
       in if c == 0 then X.i64 0 else s X./ (X.i64 c)
   }
 
-  module optone : monoid with i = del f64 with o = f64 =
-    with_gen (one f64) {
-      type i = del f64
-      def ERR_gen_expecting_E = false
-      def gen (i:del f64) =
-	match i case #E x -> x
-		case #Del _ -> assert ERR_gen_expecting_E (([])[0])
-    }
-
-  module groups = chunk (max f64) optone { def del_ign (c:u8) : bool = c == '|' }
+  module groups = chunk (max f64) (optone f64) { def del_ign (c:u8) : bool = c == '|' }
   module items = chunk (avg f64) groups { def del_ign (c:u8) : bool = c == ',' }
   module M = chunk (float f64) items { def del_ign (_ :u8) : bool = false }
 
@@ -110,18 +92,7 @@ entry test_max_avgs [n] (xs: [n]u8) : f64 =
 module max_counts : { val red [n] : [n]u8 -> i64 } = {
   open monoidal
 
-  module optone : monoid with i = del i64 with o = i64 = {
-    module M = one i64
-    open with_gen M {
-      type i = del i64
-      def ERR_gen_expecting_E = false
-      def gen (i:del i64) =
-	match i case #E x -> x
-		case #Del _ -> assert ERR_gen_expecting_E (([])[0])
-    }
-  }
-
-  module groups = chunk (max i64) optone { def del_ign (c:u8) : bool = c == '|' }
+  module groups = chunk (max i64) (optone i64) { def del_ign (c:u8) : bool = c == '|' }
   module items = chunk (count {type i = i64}) groups { def del_ign (c:u8) : bool = c == ',' }
   module M = chunk (nat i64) items { def del_ign (_ :u8) : bool = false }
 
@@ -147,3 +118,35 @@ entry test_max_counts [n] (xs: [n]u8) : i64 =
 -- output { 3i64 }
 -- input { "3,5,4|10,12,11|3,2,100,200|7,8,9" }
 -- output { 4i64 }
+
+-- ---------------------------------------------------------------------
+-- Example computing the sum of those comma-separated integers that are
+-- larger than 10.
+-- ---------------------------------------------------------------------
+
+module sum_greaterthan10 : { val red [n] : [n]u8 -> i64 } = {
+  open monoidal
+
+  module gt10 = filter (nat i64) { def pred (i : i64) = i > 10 }
+
+  module items = chunk (sum i64) (optone i64) { def del_ign (c:u8) : bool = c == ',' }
+  module M = chunk gt10 items { def del_ign (_ :u8) : bool = false }
+
+  module T = with_gen M {
+    type i = u8
+    def gen (c:i) : M.i =
+      if ('0' <= c && c <= '9') || c == '.' || c == '-' then #E c else #Del c
+  }
+
+  def red [n] (xs:[n]u8) : i64 =
+    reduce T.op T.ne (map T.gen xs) |> T.obs
+}
+
+entry test_sum_greaterthan10 [n] (xs: [n]u8) : i64 =
+  sum_greaterthan10.red xs
+
+-- Tests of sum_greaterthan10
+-- ==
+-- entry: test_sum_greaterthan10
+-- input { "3,5,4,12,10,11,3,2,100,200,7,8,9" }
+-- output { 323i64 }

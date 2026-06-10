@@ -56,6 +56,12 @@ module type monoidal = {
   -- | The minimum monoid.
   module min   : (Y:numeric) -> monoid with i = Y.t with o = Y.t
 
+  -- | The boolean monoid all
+  module all   : monoid with i = bool with o = bool
+
+  -- | The boolean monoid exists
+  module exists : monoid with i = bool with o = bool
+
   -- | Combinator for parallel composition.
   module prod  : (M1:monoid) -> (M2:monoid) -> monoid with i = (M1.i,M2.i) with o = (M1.o,M2.o)
 
@@ -64,6 +70,9 @@ module type monoidal = {
 
   -- | Combinator for extending monoid projection.
   module with_obs : (M: monoid) -> (X:{ type o val obs : M.o -> o }) -> monoid with i = M.i with o = X.o
+
+  -- | Filtering
+  module filter : (M: monoid) -> { val pred : M.o -> bool } -> monoid with i = M.i with o = M.o
 
   -- | Duplication monoid.
   module dup  : (X:{type i}) -> (M:monoid with i = (X.i,X.i)) -> monoid with i = X.i with o = M.o
@@ -75,7 +84,10 @@ module type monoidal = {
   module opt : (M:monoid) -> monoid with i = opt M.i with o = opt M.o
 
   -- | Monoid failing on empty data.
-  module one : (X:{type t}) -> monoid with i = X.t with o = X.t  -- fails on zero elements, uses opt type internally
+  module one : (X:{type t}) -> monoid with i = X.t with o = X.t
+
+  -- | Monoid failing on empty data and on delimiters.
+  module optone : (X:{type t}) -> monoid with i = del X.t with o = X.t
 }
 
 module monoidal = {
@@ -90,7 +102,7 @@ module monoidal = {
   def ERR_gen_expecting_E = false
   def ERR_obs_expecting_some = false
 
-  module mk_simple (X:numeric) (Y: { val op : X.t -> X.t -> X.t val ne : X.t })
+  module mk_simple_num (X:numeric) (Y: { val op : X.t -> X.t -> X.t val ne : X.t })
 	 : monoid with i = X.t with o = X.t = {
     type t = X.t
     def op = Y.op
@@ -101,10 +113,24 @@ module monoidal = {
     def obs x : o = x
   }
 
-  module sum (X:numeric) = mk_simple X { def ne = X.i8 0 def op = (X.+) }
-  module mul (X:numeric) = mk_simple X { def ne = X.i8 1 def op = (X.*) }
-  module max (X:numeric) = mk_simple X { def ne = X.lowest def op = (X.max) }
-  module min (X:numeric) = mk_simple X { def ne = X.highest def op = (X.min) }
+  module sum (X:numeric) = mk_simple_num X { def ne = X.i8 0 def op = (X.+) }
+  module mul (X:numeric) = mk_simple_num X { def ne = X.i8 1 def op = (X.*) }
+  module max (X:numeric) = mk_simple_num X { def ne = X.lowest def op = (X.max) }
+  module min (X:numeric) = mk_simple_num X { def ne = X.highest def op = (X.min) }
+
+  module mk_simple_bool (Y: { val op : bool -> bool -> bool val ne : bool })
+	 : monoid with i = bool with o = bool = {
+    type t = bool
+    def op = Y.op
+    def ne = Y.ne
+    type i = t
+    def gen x : t = x
+    type o = t
+    def obs x : o = x
+  }
+
+  module all = mk_simple_bool { def op a b = a && b def ne = true }
+  module exists = mk_simple_bool { def op a b = a || b def ne = false }
 
   module count (X : { type i }) : monoid with i = X.i with o = i64 = {
     type t = i64
@@ -168,6 +194,22 @@ module monoidal = {
     type o = X.o
     def obs (x:t) : o = X.obs(obs x)
   }
+
+  module optone (X: { type t }) : monoid with i = del X.t with o = X.t =
+    with_gen (one X) {
+      type i = del X.t
+      def ERR_gen_expecting_E = false
+      def gen (i:del X.t) : X.t =
+	match i case #E x -> x
+		case #Del _ -> assert ERR_gen_expecting_E (([])[0])
+    }
+
+  module filter (M:monoid) (X:{ val pred : M.o -> bool }) : monoid with i = M.i with o = M.o =
+    with_obs M { type o = M.o
+                 def obs (x:M.o) : o =
+                   if X.pred x then x
+		   else M.obs M.ne
+               }
 
   module dup (X:{ type i }) (M:monoid with i = (X.i,X.i)) : monoid with i = X.i with o = M.o =
     with_gen M { type i = X.i def gen (i:i) = (i,i) }
