@@ -2,7 +2,7 @@
 -- formatted byte sequences using a single monoidal operation. Examples include
 -- finding the maximum average of grouped floats. The library is heavily
 -- inspired by Oleg Kiselyov's paper
--- [More Fun with Monads](https://okmij.org/ftp/Algorithms/monoid-fun.pdf)
+-- [More Fun with Monoids](https://okmij.org/ftp/Algorithms/monoid-fun.pdf)
 -- and the associated OCaml code.
 
 -- | The option type
