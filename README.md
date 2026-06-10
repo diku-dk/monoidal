@@ -17,7 +17,7 @@ $ futhark pkg sync
 
 As an example, consider a large text file containing floats separated by commas
 (`,`) and grouped by bars (`|`). An example text file may contain the string
-`12.1,45.3|10,93.2,2|23`. Now consider the task of computing the maximum of the
+`"12.1,45.3|10,93.2,2|23"`. Now consider the task of computing the maximum of the
 averages of the groups of floats. Here is how we can construct a monoid for
 carrying out the task:
 
@@ -50,7 +50,7 @@ module max_avgs : { val red [n] : [n]u8 -> f64 } = {
 ```
 
 We first define a monoid for computing the average of a series of values. This
-monoid uses the `prod` monoid for maintaining the sum and the count of
+monoid uses the `prod` monoid combinator for maintaining the sum and the count of
 underlying values. It also uses the `with_obs` combinator for refining how
 monoid values are observed (using float division). We then use the `chunk`
 combinator for defining which monoid is used on values separated by commas and
