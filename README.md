@@ -6,6 +6,12 @@ finding the maximum average of grouped floats. The library is heavily inspired b
 Oleg Kiselyov's paper [More Fun with Monoids](https://okmij.org/ftp/Algorithms/monoid-fun.pdf)
 and the associated OCaml code.
 
+This package also contains monoid-based functionality for majority voting
+through a parameterised module
+[`mk_majority`](lib/github.com/diku-dk/monoidal/majority.fut). This monoid-based
+functionality is also described in details in Oleg Kiselyov's paper
+[More Fun with Monoids](https://okmij.org/ftp/Algorithms/monoid-fun.pdf).
+
 ## Installation
 
 ```
