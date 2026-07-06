@@ -93,9 +93,9 @@ module type monoidal = {
 module monoidal = {
 
   def ERR_op_F_and_P_do_not_reduce = false
-  def ERR_op_P_and_F_do_not_reduce = false
+  def ERR_op_P_and_PF_do_not_reduce = false
   def ERR_op_F_and_F_do_not_reduce = false
-  def ERR_op_P_and_M_do_not_reduce = false
+  def ERR_op_PIFM_and_M_do_not_reduce = false
   def ERR_obs_expecting_I_or_F_got_NE = false
   def ERR_obs_expecting_I_or_F_got_P = false
   def ERR_obs_expecting_I_or_F_got_M = false
@@ -252,9 +252,13 @@ module monoidal = {
 	assert (s == false) (#F(true,x,b,f))
       case (#M, #P) -> #F(Y.((true, u8 0, u8 1, u8 1 / u8 10)))
       case (#F _, #P) -> assert ERR_op_F_and_P_do_not_reduce (([])[0])
-      case (#P, #F _) -> assert ERR_op_P_and_F_do_not_reduce (([])[0])
+      case (#P, #F _) -> assert ERR_op_P_and_PF_do_not_reduce (([])[0])
+      case (#P, #P) -> assert ERR_op_P_and_PF_do_not_reduce (([])[0])
       case (#F _, #F _) -> assert ERR_op_F_and_F_do_not_reduce (([])[0])
-      case (#P, #M) -> assert ERR_op_P_and_M_do_not_reduce (([])[0])
+      case (#P, #M) -> assert ERR_op_PIFM_and_M_do_not_reduce (([])[0])
+      case (#I _, #M) -> assert ERR_op_PIFM_and_M_do_not_reduce (([])[0])
+      case (#F _, #M) -> assert ERR_op_PIFM_and_M_do_not_reduce (([])[0])
+      case (#M, #M) -> assert ERR_op_PIFM_and_M_do_not_reduce (([])[0])
     def obs (x:t) : o =
       match x
       case #I(s,x,_) -> if s then Y.neg x else x
