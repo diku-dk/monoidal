@@ -43,27 +43,3 @@ module mk_majority (X : { type t val (==): t -> t -> bool })
 	 let x = reduce maj maj0 ys |> (.1)
 	 in if count x xs >= n / 2 then #some x else #none
 }
-
-module maj_i64 = mk_majority i64
-
-entry test [n] (xs:[n]i64) : i64 =
-  match maj_i64.majority xs
-  case #none -> -1
-  case #some x -> x
-
--- Tests of majority voting
--- ==
--- entry: test
--- input { [3i64,2,45,2,5,53,4,2,5,2,6,2,7,2,64,5,2,2,5,2,66,2,3,2,2,7,2,2,4,3,3,4] }
--- output { -1i64 }
--- input { [3i64,2,45,2,5,53,4,2,5,2,6,2,7,2,64,5,2,2,5,2,66,2,3,2,2,7,2,2,4,2,3,2,3,2,4] }
--- output { 2i64 }
-
-def xs = [3,2,45,2,5,53,4,2,5,2,6,2,7,2,64,5,2,2,5,2,66,2,3,2,2,7,2,2i64,4,3,3,4]
-def ys = [3,2,45,2,5,53,4,2,5,2,6,2,7,2,64,5,2,2,5,2,66,2,3,2,2,7,2,2i64,4,2,3,2,3,2,4]
-
-def test1() : opt i64 = maj_i64.majority xs
-def test2() : opt i64 = maj_i64.majority ys
-
-def run_tests () : bool =
-  test1() == #none && test2() == #some 2

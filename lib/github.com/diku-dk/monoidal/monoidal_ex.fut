@@ -40,7 +40,8 @@ entry test_max_sums [n] (xs: [n]u8) : f64 =
 -- output { 34.8f64 }
 -- input { "34,234,-23,23,24|23,-2.23|22.01,68,3.4,-64,300,-4,2|122|5032.2,-5000.0" }
 -- output { 327.41f64 }
-
+-- script input { $loadbytes "ex.txt" }
+-- output { 36521f64 }
 
 -- ---------------------------------------------------------------------
 -- Example computing the maximum average of a series of grouped floats
@@ -84,6 +85,17 @@ entry test_max_avgs [n] (xs: [n]u8) : f64 =
 -- output { 4f64 }
 -- input { "3,5,4|10,12,11|100,200|7,8,9" }
 -- output { 150f64 }
+-- script input { $loadbytes "ex.txt" }
+-- output { 908.71f64 }
+
+entry bench_max_avgs [n] (xs: [n]u8) : f64 =
+  max_avgs.red xs
+
+-- Bench of max_avgs
+-- ==
+-- entry: bench_max_avgs
+-- script input { $loadbytes "ex.txt" }
+-- output { 908.71f64 }
 
 -- ---------------------------------------------------------------------
 -- Example computing the maximum count of a series of grouped nats

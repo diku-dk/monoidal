@@ -6,3 +6,4 @@ test:
 clean:
 	rm -rf *~
 	$(MAKE) -C lib/github.com/diku-dk/monoidal clean
+	$(MAKE) -C util clean
