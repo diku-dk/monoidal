@@ -94,8 +94,26 @@ entry bench_max_avgs [n] (xs: [n]u8) : f64 =
 -- Bench of max_avgs
 -- ==
 -- entry: bench_max_avgs
--- script input { $loadbytes "ex.txt" }
+-- script notest input { $loadbytes "ex.txt" }
 -- output { 908.71f64 }
+-- script notest input { $loadbytes "../../../../util/ex50.txt" }
+-- output { 866.25 }
+-- script notest input { $loadbytes "../../../../util/ex100.txt" }
+-- output { 989.5714285714286 }
+-- script notest input { $loadbytes "../../../../util/ex200.txt" }
+-- output { 1028.0 }
+-- script notest input { $loadbytes "../../../../util/ex400.txt" }
+-- output { 1225.25 }
+-- script notest input { $loadbytes "../../../../util/ex800.txt" }
+-- output { 1056.142857142857 }
+-- script notest input { $loadbytes "../../../../util/ex1600.txt" }
+-- output { 1092.5714285714287 }
+-- script notest input { $loadbytes "../../../../util/ex3200.txt" }
+-- output { 1100.75 }
+-- script notest input { $loadbytes "../../../../util/ex6400.txt" }
+-- output { 1070.4285714285713 }
+-- script notest input { $loadbytes "../../../../util/ex12800.txt" }
+-- output { 1208.0 }
 
 -- ---------------------------------------------------------------------
 -- Example computing the maximum count of a series of grouped nats
@@ -162,3 +180,36 @@ entry test_sum_greaterthan10 [n] (xs: [n]u8) : i64 =
 -- entry: test_sum_greaterthan10
 -- input { "3,5,4,12,10,11,3,2,100,200,7,8,9" }
 -- output { 323i64 }
+
+-- -------------------------------------
+-- Example computing the sum of products
+-- -------------------------------------
+
+module sumofproducts : { val red [n] : [n]u8 -> f64 } = {
+
+  open monoidal
+
+  module groups = chunk (sum f64) (optone f64) { def del_ign (c:u8) : bool = c == '+' }
+  module items = chunk (mul f64) groups { def del_ign (c:u8) : bool = c == '*' }
+  module M = chunk (float f64) items { def del_ign (_ :u8) : bool = false }
+
+  module T = with_gen M {
+    type i = u8
+    def gen (c:i) : M.i =
+      if ('0' <= c && c <= '9') || c == '.' || c == '-' then #E c else #Del c
+  }
+
+  def red [n] (xs:[n]u8) : f64 =
+    reduce T.op T.ne (map T.gen xs) |> T.obs
+}
+
+entry test_sumofproducts [n] (xs: [n]u8) : f64 =
+  sumofproducts.red xs
+
+-- Tests of sumofproducts
+-- ==
+-- entry: test_sumofproducts
+-- input { "34" }
+-- output { 34f64 }
+-- input { "34*234*23*23+23*2+22*3*2+122" }
+-- output { 4209024f64 }
