@@ -51,11 +51,12 @@ module max_avgs : { val red [n] : [n]u8 -> f64 } = {
   open monoidal
 
   module avg (X:numeric) : monoid with i = X.t with o = X.t = {
-    open dup { type i = X.t }
+    module Y = dup { type i = X.t }
 	     (prod (sum X) (count { type i = X.t }))
+    open Y
     type o = X.t
     def obs (t:t) : o =
-      let (s,c) = obs t
+      let (s,c) = Y.obs t
       in if c == 0 then X.i64 0 else s X./ (X.i64 c)
   }
 
