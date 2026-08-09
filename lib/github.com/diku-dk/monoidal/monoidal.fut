@@ -186,13 +186,13 @@ module monoidal = {
   module with_gen (M:monoid) (X:{ type i val gen : i -> M.i }) : monoid with o = M.o with i = X.i = {
     open M
     type i = X.i
-    def gen (i:i) : t = gen(X.gen i)
+    def gen (i:i) : t = M.gen(X.gen i)
   }
 
   module with_obs (M:monoid) (X:{ type o val obs : M.o -> o }) : monoid with i = M.i with o = X.o = {
     open M
     type o = X.o
-    def obs (x:t) : o = X.obs(obs x)
+    def obs (x:t) : o = X.obs(M.obs x)
   }
 
   module optone (X: { type t }) : monoid with i = del X.t with o = X.t =
