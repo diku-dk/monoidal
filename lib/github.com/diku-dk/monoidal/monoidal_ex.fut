@@ -1,6 +1,141 @@
 import "monoidal"
 
 -- ---------------------------------------------------------------------
+-- Total floating-point parser
+-- ---------------------------------------------------------------------
+
+module total_float_example = {
+  open monoidal
+  module M = float_try f64
+
+  def parse [n] (xs:[n]u8) : opt f64 =
+    reduce M.op M.ne (map M.gen xs) |> M.obs
+
+  def parse_pair [n] (xs:[n]u8) : (bool,f64) =
+    match parse xs
+    case #some x -> (true,x)
+    case #none -> (false,0)
+
+  def same (x:opt f64) (y:opt f64) : bool =
+    match (x,y)
+    case (#some x, #some y) -> x == y
+    case (#none, #none) -> true
+    case _ -> false
+
+  def split_consistent [n] (xs:[n]u8) : bool =
+    let expected = parse xs
+    let parts = map M.gen xs
+    let agrees (i:i64) =
+      M.obs (M.op (reduce M.op M.ne parts[:i])
+                  (reduce M.op M.ne parts[i:]))
+      |> same expected
+    in reduce (&&) true (map agrees (iota (n+1)))
+}
+
+entry test_float_try [n] (xs:[n]u8) : (bool,f64) =
+  total_float_example.parse_pair xs
+
+entry test_float_try_splits [n] (xs:[n]u8) : bool =
+  total_float_example.split_consistent xs
+
+module or_example = {
+  open monoidal
+  module decimal = float_try f64
+  module alternate_decimal = with_gen (float_try f64) {
+    type i = u8
+    def gen (c:i) =
+      if c == ',' then '.'
+      else if c == '1' then '9'
+      else c
+  }
+  module M = or { type t = f64 } decimal alternate_decimal
+
+  def parse [n] (xs:[n]u8) : opt f64 =
+    reduce M.op M.ne (map M.gen xs) |> M.obs
+
+  def parse_pair [n] (xs:[n]u8) : (bool,f64) =
+    match parse xs
+    case #some x -> (true,x)
+    case #none -> (false,0)
+
+  def same (x:opt f64) (y:opt f64) : bool =
+    match (x,y)
+    case (#some x, #some y) -> x == y
+    case (#none, #none) -> true
+    case _ -> false
+
+  def split_consistent [n] (xs:[n]u8) : bool =
+    let expected = parse xs
+    let parts = map M.gen xs
+    let agrees (i:i64) =
+      M.obs (M.op (reduce M.op M.ne parts[:i])
+                  (reduce M.op M.ne parts[i:]))
+      |> same expected
+    in reduce (&&) true (map agrees (iota (n+1)))
+}
+
+entry test_or [n] (xs:[n]u8) : (bool,f64) =
+  or_example.parse_pair xs
+
+entry test_or_splits [n] (xs:[n]u8) : bool =
+  or_example.split_consistent xs
+
+-- Tests of or.  The alternate branch accepts comma as a decimal separator
+-- and maps 1 to 9, making left-biased choice observable when both succeed.
+-- entry: test_or
+-- input { "12.34" }
+-- output { true 12.34f64 }
+-- input { "12,34" }
+-- output { true 92.34f64 }
+-- input { "1234" }
+-- output { true 1234f64 }
+-- input { "1.2.3" }
+-- output { false 0f64 }
+-- input { "not-a-number" }
+-- output { false 0f64 }
+
+-- entry: test_or_splits
+-- input { "12.34" }
+-- output { true }
+-- input { "12,34" }
+-- output { true }
+-- input { "1.2.3" }
+-- output { true }
+
+-- Tests of float_try
+-- ==
+-- entry: test_float_try
+-- input { "12.34" }
+-- output { true 12.34f64 }
+-- input { "-.5" }
+-- output { true -0.5f64 }
+-- input { "-." }
+-- output { true 0f64 }
+-- input { "" }
+-- output { false 0f64 }
+-- input { "." }
+-- output { false 0f64 }
+-- input { "-" }
+-- output { false 0f64 }
+-- input { "1.2.3" }
+-- output { false 0f64 }
+-- input { "1-2" }
+-- output { false 0f64 }
+-- input { "number" }
+-- output { false 0f64 }
+
+-- The success or failure result is independent of the reduction split.
+-- entry: test_float_try_splits
+-- input { "12.34" }
+-- output { true }
+-- input { "-.5" }
+-- output { true }
+-- input { "1.2.3" }
+-- output { true }
+-- input { "1-2" }
+-- output { true }
+
+-- ---------------------------------------------------------------------
 -- Example computing the maximum of the sums of elements in a series of
 -- grouped floats; the floats are separated by commas (,) and the groups
 -- are separated by bars (|).
@@ -213,3 +348,256 @@ entry test_sumofproducts [n] (xs: [n]u8) : f64 =
 -- output { 34f64 }
 -- input { "34*234*23*23+23*2+22*3*2+122" }
 -- output { 4209024f64 }
+
+-- ---------------------------------------------------------------------
+-- Sum of products with one supported layer of parentheses
+-- ---------------------------------------------------------------------
+
+module parenthesised_sumofproducts : {
+  val red [n] : [n]u8 -> f64
+  val split_consistent [n] : [n]u8 -> bool
+  val red2 [n] : [n]u8 -> f64
+  val split2_consistent [n] : [n]u8 -> bool
+  val association2_consistent [n] : [n]u8 -> bool
+  val red3 [n] : [n]u8 -> f64
+  val split3_consistent [n] : [n]u8 -> bool
+} = {
+  open monoidal
+
+  module groups = chunk (sum f64) (optone f64) { def del_ign (c:u8) = c == '+' }
+  module items = chunk (mul f64) groups { def del_ign (c:u8) = c == '*' }
+  module Expr = chunk (float f64) items { def del_ign (_:u8) = false }
+
+  module Outer0 = chunk (nestable (float f64)) items { def del_ign (_:u8) = false }
+  module Outer = with_gen Outer0 {
+    type i = nest Expr.i Expr.o
+    def gen (x:i) : Outer0.i =
+      match x
+      case #Raw (#E c) -> #E (#Raw c)
+      case #Raw (#Del c) -> #Del c
+      case #Nested x -> #E (#Nested x)
+  }
+
+  module P = parens Expr Outer {
+    def left (c:u8) = c == '('
+    def right (c:u8) = c == ')'
+  }
+  module T = with_gen P {
+    type i = u8
+    def gen (c:i) : P.i =
+      if c == '(' || c == ')' then #Del c
+      else if ('0' <= c && c <= '9') || c == '.' || c == '-' then #E (#E c)
+      else #E (#Del c)
+  }
+
+  module P2 = parens_n { def n : i64 = 2 }
+                       { type raw = Expr.i type value = f64 } Outer {
+    def left (c:u8) = c == '('
+    def right (c:u8) = c == ')'
+  }
+  module T2 = with_gen P2 {
+    type i = u8
+    def gen (c:i) : P2.i =
+      if c == '(' || c == ')' then #Del c
+      else if ('0' <= c && c <= '9') || c == '.' || c == '-' then #E (#E c)
+      else #E (#Del c)
+  }
+
+  module P3 = parens_n { def n : i64 = 3 }
+                       { type raw = Expr.i type value = f64 } Outer {
+    def left (c:u8) = c == '('
+    def right (c:u8) = c == ')'
+  }
+  module T3 = with_gen P3 {
+    type i = u8
+    def gen (c:i) : P3.i =
+      if c == '(' || c == ')' then #Del c
+      else if ('0' <= c && c <= '9') || c == '.' || c == '-' then #E (#E c)
+      else #E (#Del c)
+  }
+
+  def red [n] (xs:[n]u8) : f64 =
+    reduce T.op T.ne (map T.gen xs) |> T.obs
+
+  -- Check every possible two-way partition.  Each side is reduced
+  -- independently before their summaries are combined, so split points on
+  -- either side of a parenthesis exercise the boundary states in `parens`.
+  def split_consistent [n] (xs:[n]u8) : bool =
+    let expected = red xs
+    let parts = map T.gen xs
+    let agrees (i:i64) =
+      let l = reduce T.op T.ne parts[:i]
+      let r = reduce T.op T.ne parts[i:]
+      in T.obs (T.op l r) == expected
+    in reduce (&&) true (map agrees (iota (n+1)))
+
+  def red2 [n] (xs:[n]u8) : f64 =
+    reduce T2.op T2.ne (map T2.gen xs) |> T2.obs
+
+  def split2_consistent [n] (xs:[n]u8) : bool =
+    let expected = red2 xs
+    let parts = map T2.gen xs
+    let agrees (i:i64) =
+      let l = reduce T2.op T2.ne parts[:i]
+      let r = reduce T2.op T2.ne parts[i:]
+      in T2.obs (T2.op l r) == expected
+    in reduce (&&) true (map agrees (iota (n+1)))
+
+  def association2_consistent [n] (xs:[n]u8) : bool =
+    let parts = map T2.gen xs
+    let agrees_i (i:i64) =
+      let agrees_j (j:i64) =
+        let a = reduce T2.op T2.ne parts[:i]
+        let b = reduce T2.op T2.ne parts[i:j]
+        let c = reduce T2.op T2.ne parts[j:]
+        let l = T2.obs (T2.op (T2.op a b) c)
+        let r = T2.obs (T2.op a (T2.op b c))
+        in l == r
+      in reduce (&&) true (map agrees_j (map (\j -> i+j) (iota (n-i+1))))
+    in reduce (&&) true (map agrees_i (iota (n+1)))
+
+  def red3 [n] (xs:[n]u8) : f64 =
+    reduce T3.op T3.ne (map T3.gen xs) |> T3.obs
+
+  def split3_consistent [n] (xs:[n]u8) : bool =
+    let expected = red3 xs
+    let parts = map T3.gen xs
+    let agrees (i:i64) =
+      let l = reduce T3.op T3.ne parts[:i]
+      let r = reduce T3.op T3.ne parts[i:]
+      in T3.obs (T3.op l r) == expected
+    in reduce (&&) true (map agrees (iota (n+1)))
+}
+
+entry test_parenthesised_sumofproducts [n] (xs:[n]u8) : f64 =
+  parenthesised_sumofproducts.red xs
+
+entry test_parenthesised_sumofproducts_splits [n] (xs:[n]u8) : bool =
+  parenthesised_sumofproducts.split_consistent xs
+
+entry test_parenthesised_sumofproducts2 [n] (xs:[n]u8) : f64 =
+  parenthesised_sumofproducts.red2 xs
+
+entry test_parenthesised_sumofproducts2_splits [n] (xs:[n]u8) : bool =
+  parenthesised_sumofproducts.split2_consistent xs
+
+entry test_parenthesised_sumofproducts2_association [n] (xs:[n]u8) : bool =
+  parenthesised_sumofproducts.association2_consistent xs
+
+entry test_parenthesised_sumofproducts3 [n] (xs:[n]u8) : f64 =
+  parenthesised_sumofproducts.red3 xs
+
+entry test_parenthesised_sumofproducts3_splits [n] (xs:[n]u8) : bool =
+  parenthesised_sumofproducts.split3_consistent xs
+
+-- Tests of parenthesised_sumofproducts
+-- ==
+-- entry: test_parenthesised_sumofproducts
+-- input { "34" }
+-- output { 34f64 }
+-- input { "(34)" }
+-- output { 34f64 }
+-- input { "(2+3)*4" }
+-- output { 20f64 }
+-- input { "2*(3+4)" }
+-- output { 14f64 }
+-- input { "2*(3+4)+5" }
+-- output { 19f64 }
+-- input { "(2+3)*(4+5)" }
+-- output { 45f64 }
+-- input { "(2*3)+(4*5)" }
+-- output { 26f64 }
+-- input { "1+(2*3)+4" }
+-- output { 11f64 }
+-- input { "1+2*(3+4)*5+6" }
+-- output { 77f64 }
+-- input { "(-2+3.5)*4" }
+-- output { 6f64 }
+-- input { "2+3*(4+5)+6*(7+8)+9" }
+-- output { 128f64 }
+-- input { "12*(34+56)+78" }
+-- output { 1158f64 }
+-- input { "(12+34)*(56+78)" }
+-- output { 6164f64 }
+-- input { "(12*34)+(56*78)" }
+-- output { 4776f64 }
+-- input { "100+25*(30+4)*2+7" }
+-- output { 1807f64 }
+-- input { "12.5*(30+2)+100" }
+-- output { 500f64 }
+
+-- Test every possible boundary between independently reduced substrings.
+-- entry: test_parenthesised_sumofproducts_splits
+-- input { "34" }
+-- output { true }
+-- input { "(34)" }
+-- output { true }
+-- input { "2*(3+4)+5" }
+-- output { true }
+-- input { "(2+3)*(4+5)" }
+-- output { true }
+-- input { "(2*3)+(4*5)" }
+-- output { true }
+-- input { "1+2*(3+4)*5+6" }
+-- output { true }
+-- input { "2+3*(4+5)+6*(7+8)+9" }
+-- output { true }
+-- input { "12*(34+56)+78" }
+-- output { true }
+-- input { "(12+34)*(56+78)" }
+-- output { true }
+-- input { "100+25*(30+4)*2+7" }
+-- output { true }
+
+-- Tests of two parenthesis levels.
+-- entry: test_parenthesised_sumofproducts2
+-- input { "34" }
+-- output { 34f64 }
+-- input { "2*(3+4)" }
+-- output { 14f64 }
+-- input { "2*(3+(4*5))" }
+-- output { 46f64 }
+-- input { "((2+3)*4)" }
+-- output { 20f64 }
+-- input { "(2+(3*4))*(5+(6*7))" }
+-- output { 658f64 }
+-- input { "12*(34+(56*(2+3)))+78" }
+-- output { 3846f64 }
+
+-- Check all two-way reduction splits, including splits between adjacent
+-- opening and closing parentheses.
+-- entry: test_parenthesised_sumofproducts2_splits
+-- input { "2*(3+(4*5))" }
+-- output { true }
+-- input { "((2+3)*4)" }
+-- output { true }
+-- input { "(2+(3*4))*(5+(6*7))" }
+-- output { true }
+-- input { "12*(34+(56*(2+3)))+78" }
+-- output { true }
+
+-- Instantiate the general combinator at depth three.
+-- entry: test_parenthesised_sumofproducts3
+-- input { "(((2+3)*4)+5)" }
+-- output { 25f64 }
+-- input { "2*(3+(4*(5+6)))" }
+-- output { 94f64 }
+-- input { "12*(34+(56*(2+3*4)))+78" }
+-- output { 9894f64 }
+
+-- entry: test_parenthesised_sumofproducts3_splits
+-- input { "(((2+3)*4)+5)" }
+-- output { true }
+-- input { "2*(3+(4*(5+6)))" }
+-- output { true }
+-- input { "12*(34+(56*(2+3*4)))+78" }
+-- output { true }
+
+-- Exercise both associations of every three-way split.
+-- entry: test_parenthesised_sumofproducts2_association
+-- input { "2*(3+(4*5))" }
+-- output { true }
+-- input { "((2+3)*4)" }
+-- output { true }
+-- input { "(2+(3*4))*(5+(6*7))" }
+-- output { true }
