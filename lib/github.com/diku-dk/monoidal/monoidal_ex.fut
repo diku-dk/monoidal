@@ -38,6 +38,37 @@ entry test_float_try [n] (xs:[n]u8) : (bool,f64) =
 entry test_float_try_splits [n] (xs:[n]u8) : bool =
   total_float_example.split_consistent xs
 
+-- Force both reduction trees across a decimal point, then append digits
+-- to check the fractional scale retained in each summary.
+entry test_float_fragments [a][b][c][d]
+    (xs:[a]u8) (ys:[b]u8) (zs:[c]u8) (ws:[d]u8) : [4]f64 =
+  let summarise xs = reduce total_float_example.M.op
+    total_float_example.M.ne (map total_float_example.M.gen xs)
+  let op = total_float_example.M.op
+  let value s = match total_float_example.M.obs s
+                case #some x -> x
+                case #none -> -999999f64
+  let x = summarise xs
+  let y = summarise ys
+  let z = summarise zs
+  let w = summarise ws
+  let left = op (op x y) z
+  let right = op x (op y z)
+  in map value [left, right, op left w, op right w]
+
+-- ==
+-- entry: test_float_fragments
+-- input { "1" "." "23" "45" }
+-- output { [1.23f64, 1.23f64, 1.2345f64, 1.2345f64] }
+-- input { "12" "." "345" "67" }
+-- output { [12.345f64, 12.345f64, 12.34567f64, 12.34567f64] }
+-- input { "-" "." "23" "45" }
+-- output { [-0.23f64, -0.23f64, -0.2345f64, -0.2345f64] }
+-- input { "-12" "." "03" "04" }
+-- output { [-12.03f64, -12.03f64, -12.0304f64, -12.0304f64] }
+-- input { "" "." "23" "45" }
+-- output { [0.23f64, 0.23f64, 0.2345f64, 0.2345f64] }
+
 module or_example = {
   open monoidal
   module decimal = float_try f64
@@ -357,6 +388,9 @@ entry test_sumofproducts [n] (xs: [n]u8) : f64 =
 module parenthesised_sumofproducts : {
   val red [n] : [n]u8 -> f64
   val split_consistent [n] : [n]u8 -> bool
+  val association_consistent [n] : [n]u8 -> bool
+  val nested_failure_left : bool -> f64
+  val nested_failure_right : bool -> f64
   val red2 [n] : [n]u8 -> f64
   val split2_consistent [n] : [n]u8 -> bool
   val association2_consistent [n] : [n]u8 -> bool
@@ -391,8 +425,12 @@ module parenthesised_sumofproducts : {
       else #E (#Del c)
   }
 
-  module P2 = parens_n { def n : i64 = 2 }
-                       { type raw = Expr.i type value = f64 } Outer {
+  module R0 = Parens.Zero { type t = Outer.t }
+  module R1 = Parens.Succ R0
+  module R2 = Parens.Succ R1
+  module R3 = Parens.Succ R2
+  module P2 = Parens.Make
+    { type raw = Expr.i type value = f64 } Outer R2 {
     def left (c:u8) = c == '('
     def right (c:u8) = c == ')'
   }
@@ -404,8 +442,8 @@ module parenthesised_sumofproducts : {
       else #E (#Del c)
   }
 
-  module P3 = parens_n { def n : i64 = 3 }
-                       { type raw = Expr.i type value = f64 } Outer {
+  module P3 = Parens.Make
+    { type raw = Expr.i type value = f64 } Outer R3 {
     def left (c:u8) = c == '('
     def right (c:u8) = c == ')'
   }
@@ -431,6 +469,30 @@ module parenthesised_sumofproducts : {
       let r = reduce T.op T.ne parts[i:]
       in T.obs (T.op l r) == expected
     in reduce (&&) true (map agrees (iota (n+1)))
+
+  def association_consistent [n] (xs:[n]u8) : bool =
+    let parts = map T.gen xs
+    let agrees_i (i:i64) =
+      let agrees_j (j:i64) =
+        let a = reduce T.op T.ne parts[:i]
+        let b = reduce T.op T.ne parts[i:j]
+        let c = reduce T.op T.ne parts[j:]
+        in T.obs (T.op (T.op a b) c) == T.obs (T.op a (T.op b c))
+      in reduce (&&) true (map agrees_j (map (\j -> i+j) (iota (n-i+1))))
+    in reduce (&&) true (map agrees_i (iota (n+1)))
+
+  -- The old four-form implementation forgot the depth excursion in the
+  -- right-associated case `(` op (`(` op `)`).  Both associations now
+  -- produce the same canonical invalid summary.
+  def nested_failure_left (_:bool) : f64 =
+    let l = T.gen '('
+    let r = T.gen ')'
+    in T.obs (T.op (T.op l l) r)
+
+  def nested_failure_right (_:bool) : f64 =
+    let l = T.gen '('
+    let r = T.gen ')'
+    in T.obs (T.op l (T.op l r))
 
   def red2 [n] (xs:[n]u8) : f64 =
     reduce T2.op T2.ne (map T2.gen xs) |> T2.obs
@@ -475,6 +537,15 @@ entry test_parenthesised_sumofproducts [n] (xs:[n]u8) : f64 =
 
 entry test_parenthesised_sumofproducts_splits [n] (xs:[n]u8) : bool =
   parenthesised_sumofproducts.split_consistent xs
+
+entry test_parenthesised_sumofproducts_association [n] (xs:[n]u8) : bool =
+  parenthesised_sumofproducts.association_consistent xs
+
+entry test_parenthesised_nested_failure_left (trigger:bool) : f64 =
+  parenthesised_sumofproducts.nested_failure_left trigger
+
+entry test_parenthesised_nested_failure_right (trigger:bool) : f64 =
+  parenthesised_sumofproducts.nested_failure_right trigger
 
 entry test_parenthesised_sumofproducts2 [n] (xs:[n]u8) : f64 =
   parenthesised_sumofproducts.red2 xs
@@ -550,6 +621,25 @@ entry test_parenthesised_sumofproducts3_splits [n] (xs:[n]u8) : bool =
 -- input { "100+25*(30+4)*2+7" }
 -- output { true }
 
+-- Exercise both associations at every three-way split.  The final example
+-- includes adjacent `B`-form fragments for suitable split points.
+-- entry: test_parenthesised_sumofproducts_association
+-- input { "2*(3+4)+5" }
+-- output { true }
+-- input { "(1)+(2)+(3)" }
+-- output { true }
+-- input { "12*(34+56)+78" }
+-- output { true }
+
+-- Both associations of the former counterexample must now reject.
+-- entry: test_parenthesised_nested_failure_left
+-- input { true }
+-- error:
+
+-- entry: test_parenthesised_nested_failure_right
+-- input { true }
+-- error:
+
 -- Tests of two parenthesis levels.
 -- entry: test_parenthesised_sumofproducts2
 -- input { "34" }
@@ -562,8 +652,12 @@ entry test_parenthesised_sumofproducts3_splits [n] (xs:[n]u8) : bool =
 -- output { 20f64 }
 -- input { "(2+(3*4))*(5+(6*7))" }
 -- output { 658f64 }
--- input { "12*(34+(56*(2+3)))+78" }
+-- input { "12*(34+56*(2+3))+78" }
 -- output { 3846f64 }
+-- The following expression reaches depth three and must be rejected at
+-- depth two.
+-- input { "12*(34+(56*(2+3)))+78" }
+-- error:
 
 -- Check all two-way reduction splits, including splits between adjacent
 -- opening and closing parentheses.
@@ -574,7 +668,7 @@ entry test_parenthesised_sumofproducts3_splits [n] (xs:[n]u8) : bool =
 -- output { true }
 -- input { "(2+(3*4))*(5+(6*7))" }
 -- output { true }
--- input { "12*(34+(56*(2+3)))+78" }
+-- input { "12*(34+56*(2+3))+78" }
 -- output { true }
 
 -- Instantiate the general combinator at depth three.
@@ -585,6 +679,8 @@ entry test_parenthesised_sumofproducts3_splits [n] (xs:[n]u8) : bool =
 -- output { 94f64 }
 -- input { "12*(34+(56*(2+3*4)))+78" }
 -- output { 9894f64 }
+-- input { "12*(34+(56*(2+3)))+78" }
+-- output { 3846f64 }
 
 -- entry: test_parenthesised_sumofproducts3_splits
 -- input { "(((2+3)*4)+5)" }
@@ -592,6 +688,8 @@ entry test_parenthesised_sumofproducts3_splits [n] (xs:[n]u8) : bool =
 -- input { "2*(3+(4*(5+6)))" }
 -- output { true }
 -- input { "12*(34+(56*(2+3*4)))+78" }
+-- output { true }
+-- input { "12*(34+(56*(2+3)))+78" }
 -- output { true }
 
 -- Exercise both associations of every three-way split.
