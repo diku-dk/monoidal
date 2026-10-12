@@ -206,7 +206,7 @@ entry test_max_sums [n] (xs: [n]u8) : f64 =
 -- output { 34.8f64 }
 -- input { "34,234,-23,23,24|23,-2.23|22.01,68,3.4,-64,300,-4,2|122|5032.2,-5000.0" }
 -- output { 327.41f64 }
--- input @ ex.txt
+-- script input { $loadbytes "ex.txt" }
 -- output { 36521f64 }
 
 -- ---------------------------------------------------------------------
@@ -252,7 +252,7 @@ entry test_max_avgs [n] (xs: [n]u8) : f64 =
 -- output { 4f64 }
 -- input { "3,5,4|10,12,11|100,200|7,8,9" }
 -- output { 150f64 }
--- input @ ex.txt
+-- script input { $loadbytes "ex.txt" }
 -- output { 908.71f64 }
 
 entry bench_max_avgs [n] (xs: [n]u8) : f64 =
@@ -261,25 +261,25 @@ entry bench_max_avgs [n] (xs: [n]u8) : f64 =
 -- Bench of max_avgs
 -- ==
 -- entry: bench_max_avgs
--- notest input @ ex.txt
+-- notest script input { $loadbytes "ex.txt" }
 -- output { 908.71f64 }
--- notest input @ ../../../../util/ex50.txt
+-- notest script input { $loadbytes "../../../../util/ex50.txt" }
 -- output { 866.25 }
--- notest input @ ../../../../util/ex100.txt
+-- notest script input { $loadbytes "../../../../util/ex100.txt" }
 -- output { 989.5714285714286 }
--- notest input @ ../../../../util/ex200.txt
+-- notest script input { $loadbytes "../../../../util/ex200.txt" }
 -- output { 1028.0 }
--- notest input @ ../../../../util/ex400.txt
+-- notest script input { $loadbytes "../../../../util/ex400.txt" }
 -- output { 1225.25 }
--- notest input @ ../../../../util/ex800.txt
+-- notest script input { $loadbytes "../../../../util/ex800.txt" }
 -- output { 1056.142857142857 }
--- notest input @ ../../../../util/ex1600.txt
+-- notest script input { $loadbytes "../../../../util/ex1600.txt" }
 -- output { 1092.5714285714287 }
--- notest input @ ../../../../util/ex3200.txt
+-- notest script input { $loadbytes "../../../../util/ex3200.txt" }
 -- output { 1100.75 }
--- notest input @ ../../../../util/ex6400.txt
+-- notest script input { $loadbytes "../../../../util/ex6400.txt" }
 -- output { 1070.4285714285713 }
--- notest input @ ../../../../util/ex12800.txt
+-- notest script input { $loadbytes "../../../../util/ex12800.txt" }
 -- output { 1208.0 }
 
 -- ---------------------------------------------------------------------
