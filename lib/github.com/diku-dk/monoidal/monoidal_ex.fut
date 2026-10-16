@@ -206,7 +206,7 @@ entry test_max_sums [n] (xs: [n]u8) : f64 =
 -- output { 34.8f64 }
 -- input { "34,234,-23,23,24|23,-2.23|22.01,68,3.4,-64,300,-4,2|122|5032.2,-5000.0" }
 -- output { 327.41f64 }
--- script input { io.loadbytes "ex.txt" : [10316]u8 }
+-- script input { io.loadbytes "ex.txt" :> [10316]u8 }
 -- output { 36521f64 }
 
 -- ---------------------------------------------------------------------
@@ -252,7 +252,7 @@ entry test_max_avgs [n] (xs: [n]u8) : f64 =
 -- output { 4f64 }
 -- input { "3,5,4|10,12,11|100,200|7,8,9" }
 -- output { 150f64 }
--- script input { io.loadbytes "ex.txt" : [10316]u8 }
+-- script input { io.loadbytes "ex.txt" :> [10316]u8 }
 -- output { 908.71f64 }
 
 entry bench_max_avgs [n] (xs: [n]u8) : f64 =
@@ -261,25 +261,25 @@ entry bench_max_avgs [n] (xs: [n]u8) : f64 =
 -- Bench of max_avgs
 -- ==
 -- entry: bench_max_avgs
--- notest script input { io.loadbytes "ex.txt" : [10316]u8 }
+-- notest script input { io.loadbytes "ex.txt" :> [10316]u8 }
 -- output { 908.71f64 }
--- notest script input { io.loadbytes "../../../../util/ex50.txt" : [5900]u8 }
+-- notest script input { io.loadbytes "../../../../util/ex50.txt" :> [5900]u8 }
 -- output { 866.25 }
--- notest script input { io.loadbytes "../../../../util/ex100.txt" : [11045]u8 }
+-- notest script input { io.loadbytes "../../../../util/ex100.txt" :> [11045]u8 }
 -- output { 989.5714285714286 }
--- notest script input { io.loadbytes "../../../../util/ex200.txt" : [21004]u8 }
+-- notest script input { io.loadbytes "../../../../util/ex200.txt" :> [21004]u8 }
 -- output { 1028.0 }
--- notest script input { io.loadbytes "../../../../util/ex400.txt" : [43761]u8 }
+-- notest script input { io.loadbytes "../../../../util/ex400.txt" :> [43761]u8 }
 -- output { 1225.25 }
--- notest script input { io.loadbytes "../../../../util/ex800.txt" : [87349]u8 }
+-- notest script input { io.loadbytes "../../../../util/ex800.txt" :> [87349]u8 }
 -- output { 1056.142857142857 }
--- notest script input { io.loadbytes "../../../../util/ex1600.txt" : [177077]u8 }
+-- notest script input { io.loadbytes "../../../../util/ex1600.txt" :> [177077]u8 }
 -- output { 1092.5714285714287 }
--- notest script input { io.loadbytes "../../../../util/ex3200.txt" : [353631]u8 }
+-- notest script input { io.loadbytes "../../../../util/ex3200.txt" :> [353631]u8 }
 -- output { 1100.75 }
--- notest script input { io.loadbytes "../../../../util/ex6400.txt" : [706091]u8 }
+-- notest script input { io.loadbytes "../../../../util/ex6400.txt" :> [706091]u8 }
 -- output { 1070.4285714285713 }
--- notest script input { io.loadbytes "../../../../util/ex12800.txt" : [1414396]u8 }
+-- notest script input { io.loadbytes "../../../../util/ex12800.txt" :> [1414396]u8 }
 -- output { 1208.0 }
 
 -- ---------------------------------------------------------------------
