@@ -1,6 +1,6 @@
 -- | Boyer-Moore Majority Voting. Reduction using a non-monoid, guarded with a
--- count check to ensure correctness; see the paper Oleg Kiselyov. More Fun with
--- Monoids. 2026. https://okmij.org/ftp/Algorithms/monoid-fun.pdf
+-- count check to ensure correctness; see Oleg Kiselyov's paper
+-- [More Fun with Monoids](https://okmij.org/ftp/Algorithms/monoid-fun.pdf).
 
 -- | Option type.
 type opt 'a = #some a | #none

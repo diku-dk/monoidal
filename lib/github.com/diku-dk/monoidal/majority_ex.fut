@@ -1,3 +1,5 @@
+-- | ignore
+
 import "majority"
 
 module maj_i64 = mk_majority i64

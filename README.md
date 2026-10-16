@@ -8,6 +8,8 @@ tech report [Generic Combinators for Monoid Nesting in Futhark](https://elsman.c
 and is heavily inspired by Oleg Kiselyov's paper [More Fun with Monoids](https://okmij.org/ftp/Algorithms/monoid-fun.pdf)
 and the associated OCaml code.
 
+For examples, consult the file [monoidal_ex.fut](lib/github.com/diku-dk/monoidal/monoidal_ex.fut).
+
 This package also contains monoid-based functionality for majority voting
 through a parameterised module
 [`mk_majority`](lib/github.com/diku-dk/monoidal/majority.fut). This monoid-based
@@ -21,10 +23,10 @@ $ futhark pkg add github.com/diku-dk/monoidal
 $ futhark pkg sync
 ```
 
-## Example
+## An Example Explained
 
-As an example, consider a large text file containing floats separated by commas
-(`,`) and grouped by bars (`|`). An example text file may contain the string
+Consider a large text file containing floats separated by commas
+(`,`) and grouped by bars (`|`). An input text file may contain the string
 `"12.1,45.3|10,93.2,2|23"`. Now consider the task of computing the maximum of the
 averages of the groups of floats. Here is how we can construct a monoid for
 carrying out the task:

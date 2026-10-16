@@ -7,4 +7,4 @@ test:
 
 .PHONY: clean
 clean:
-	rm -rf *~ monoidal_ex majority_ex *.c *.actual *.expected
+	rm -rf *~ monoidal_ex majority_ex *.c *.actual *.expected *_regression

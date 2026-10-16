@@ -1,9 +1,11 @@
--- | Library of composable monoids. The library allows for processing
--- formatted byte sequences using a single monoidal operation. Examples include
--- finding the maximum average of grouped floats. The library is heavily
--- inspired by Oleg Kiselyov's paper
+-- | Library of composable monoids. The library allows for processing formatted
+-- byte sequences using a single monoidal operation. Examples include finding
+-- the maximum average of grouped floats and computing a sum of products with
+-- nested parantheses of a predetermined depth. The library is heavily inspired
+-- by Oleg Kiselyov's paper
 -- [More Fun with Monoids](https://okmij.org/ftp/Algorithms/monoid-fun.pdf)
--- and the associated OCaml code.
+-- and is documented in the tech report
+-- [Generic Combinators for Monoid Nesting in Futhark](https://elsman.com/pdf/monoids.pdf).
 
 -- | The option type
 type opt 'a = #some a | #none
