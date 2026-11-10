@@ -4,7 +4,7 @@ fun usage () =
     ; raise Fail "exiting..."
     )
 
-val gen = Random.newgen()
+val gen = Random.newgenseed(1.23)
 
 fun int a b =
     floor (real (b-a) * Random.random gen) + a
