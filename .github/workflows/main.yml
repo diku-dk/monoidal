@@ -34,3 +34,25 @@ jobs:
     - run: futhark pkg sync
 
     - run: futhark test --pass-compiler-option=--Werror lib
+
+  benchmark-on-nightly:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: diku-dk/install-futhark@v1.1.0
+      with:
+        version: 'nightly'
+
+    - uses: diku-dk/install-mlkit@v1
+      with:
+        version: 'latest'
+
+    - uses: diku-dk/install-smlpkg@v1
+      with:
+        version: 'latest'
+
+    - run: make -C util
+
+    - run: futhark bench lib
