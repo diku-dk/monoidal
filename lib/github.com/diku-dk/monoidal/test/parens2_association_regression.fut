@@ -13,4 +13,3 @@ entry test_parenthesised_sumofproducts2_association (xs:[]u8) : bool = Check.ass
 -- output { true }
 -- input { "(2+(3*4))*(5+(6*7))" }
 -- output { true }
-

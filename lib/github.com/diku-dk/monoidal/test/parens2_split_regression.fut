@@ -15,4 +15,3 @@ entry test_parenthesised_sumofproducts2_splits (xs:[]u8) : bool = Check.splits (
 -- output { true }
 -- input { "12*(34+56*(2+3))+78" }
 -- output { true }
-

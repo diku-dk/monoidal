@@ -13,4 +13,3 @@ entry test_or_splits (xs:[]u8) : bool = Check.splits or_example.same xs
 -- output { true }
 -- input { "1.2.3" }
 -- output { true }
-
