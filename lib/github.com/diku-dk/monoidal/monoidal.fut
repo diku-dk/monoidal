@@ -1048,11 +1048,20 @@ module monoidal = {
     def op (x:t) (y:t) : t = match (x,y)
       case (#Empty,_) -> y
       case (_,#Empty) -> x
-      case (#Single a,#Single b) -> #Ends (a,M.ne,b)
-      case (#Single a,#Ends (b,s,c)) -> #Ends (a,M.op (M.gen b) s,c)
-      case (#Ends (a,s,b),#Single c) -> #Ends (a,M.op s (M.gen b),c)
-      case (#Ends (a,s,b),#Ends (c,t,d)) ->
-        #Ends (a,M.op s (M.op (M.gen b) (M.op (M.gen c) t)),d)
+      case _ ->
+        let (a,sx,bx) = match x
+          case #Ends (a,s,b) -> (a,s,M.gen b)
+          case #Single a -> (a,M.ne,M.ne)
+          case #Empty -> (0u8,M.ne,M.ne)
+        let (ay,sy,b) = match y
+          case #Ends (a,s,b) -> (M.gen a,s,b)
+          case #Single b -> (M.ne,M.ne,b)
+          case #Empty -> (M.ne,M.ne,0u8)
+        -- Keep one call site for the inner op: inlining it into every
+        -- constructor branch causes code expansion for nested parsers.
+        let middle = loop acc=sx for i < 3 do
+          M.op acc (if i == 0 then bx else if i == 1 then ay else sy)
+        in #Ends (a,middle,b)
     def obs (x:t) : o = match x
       case #Ends (a,s,b) -> if a == D.left && b == D.right then M.obs s else #none
       case _ -> #none

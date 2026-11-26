@@ -55,6 +55,18 @@ local module type record_schema = {
   val distinct : bool
 }
 
+-- | A record parser with its body parser available for nesting composition.
+-- Keeping the body separate lets the array combinator resolve overloaded
+-- commas with parens, without consuming the braces twice.
+local module type record_parser = {
+  -- | Parsed record value.
+  type v
+  -- | Parse the fields without their enclosing braces.
+  module body : u8monoid with o=opt v
+  -- | Parse the complete brace-enclosed record.
+  include u8monoid with o=opt v
+}
+
 -- | Public interface for schema-directed JSON queries.
 -- Parsers return #none on malformed input and #some on success.
 module type monoidal_json = {
@@ -91,23 +103,16 @@ module type monoidal_json = {
     -- | Parse a nonempty record. Keys may appear in any order; configured
     -- keys must be distinct. Unknown keys and invalid field values fail.
     module Make : (R:record_schema with k=Key.t) ->
-      {type v=R.v
-       module body : u8monoid with o=opt v
-       include u8monoid with o=opt v
+      {include record_parser with v=R.v
        -- | Project successes from both parser views; preserve #none.
        module with_obs : (F:{type o val obs:R.v -> o}) ->
-         {type t
-          type v=F.o
-          module body : u8monoid with o=opt v
-          include u8monoid with t=t with o=opt v}}
+         record_parser with v=F.o}
   }
 
   -- | Parse a bracket-enclosed array and aggregate its records directly.
   -- An empty array returns #some (Aggregate.obs Aggregate.ne).
   module array_records :
-    (R:{type v
-        module body : u8monoid with o=opt v
-        include u8monoid with o=opt v}) ->
+    (R:record_parser) ->
     (Aggregate:monoid with i=R.v) ->
     u8monoid with o=opt Aggregate.o
 }
@@ -142,18 +147,6 @@ module Key : Key = {
       case _ -> #none
     def obs (x:t) : o = x
   }
-}
-
--- | A record parser with its body parser available for nesting composition.
--- Keeping the body separate lets the array combinator resolve overloaded
--- commas with parens, without consuming the braces twice.
-local module type record_parser = {
-  -- | Parsed record value.
-  type v
-  -- | Parse the fields without their enclosing braces.
-  module body : u8monoid with o=opt v
-  -- | Parse the complete brace-enclosed record.
-  include u8monoid with o=opt v
 }
 
 module monoidal_json = {
