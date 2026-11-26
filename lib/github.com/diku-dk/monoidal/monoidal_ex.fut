@@ -263,26 +263,26 @@ entry bench_max_avgs [n] (xs: [n]u8) : f64 =
 -- Bench of max_avgs
 -- ==
 -- entry: bench_max_avgs
--- notest script input { io.loadbytes "ex.txt" :> [10316]u8 }
--- output { 908.71f64 }
--- notest script input { io.loadbytes "../../../../util/ex50.txt" :> [5900]u8 }
--- output { 866.25 }
--- notest script input { io.loadbytes "../../../../util/ex100.txt" :> [11045]u8 }
--- output { 989.5714285714286 }
--- notest script input { io.loadbytes "../../../../util/ex200.txt" :> [21004]u8 }
--- output { 1028.0 }
--- notest script input { io.loadbytes "../../../../util/ex400.txt" :> [43761]u8 }
--- output { 1225.25 }
--- notest script input { io.loadbytes "../../../../util/ex800.txt" :> [87349]u8 }
--- output { 1056.142857142857 }
--- notest script input { io.loadbytes "../../../../util/ex1600.txt" :> [177077]u8 }
--- output { 1092.5714285714287 }
--- notest script input { io.loadbytes "../../../../util/ex3200.txt" :> [353631]u8 }
--- output { 1100.75 }
--- notest script input { io.loadbytes "../../../../util/ex6400.txt" :> [706091]u8 }
--- output { 1070.4285714285713 }
--- notest script input { io.loadbytes "../../../../util/ex12800.txt" :> [1414396]u8 }
--- output { 1208.0 }
+-- notest script input { io.loadbytes "ex.txt" }
+-- output { 908.71 }
+-- notest script input { io.loadbytes "../../../../util/ex50.txt" }
+-- output { 805.5 }
+-- notest script input { io.loadbytes "../../../../util/ex100.txt" }
+-- output { 964.55 }
+-- notest script input { io.loadbytes "../../../../util/ex200.txt" }
+-- output { 973.25 }
+-- notest script input { io.loadbytes "../../../../util/ex400.txt" }
+-- output { 973.25 }
+-- notest script input { io.loadbytes "../../../../util/ex800.txt" }
+-- output { 1024.0 }
+-- notest script input { io.loadbytes "../../../../util/ex1600.txt" }
+-- output { 1087.75 }
+-- notest script input { io.loadbytes "../../../../util/ex3200.txt" }
+-- output { 1119.6 }
+-- notest script input { io.loadbytes "../../../../util/ex6400.txt" }
+-- output { 1119.6 }
+-- notest script input { io.loadbytes "../../../../util/ex12800.txt" }
+-- output { 1119.6 }
 
 -- ---------------------------------------------------------------------
 -- Example computing the maximum count of a series of grouped nats
