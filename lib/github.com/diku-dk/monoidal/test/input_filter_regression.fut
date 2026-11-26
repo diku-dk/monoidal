@@ -3,7 +3,10 @@ open monoidal
 module Sum = sum i64
 module Inputs = input_filter Sum {def pred (x:i64) = x > 0}
 module Output = filter Sum {def pred (x:i64) = x > 0}
-module Product = input_filter (mul i64) {def pred (x:i64) = x > 0}
+-- Name abstract-summary instances before passing them to input_filter:
+-- anonymous instances trigger a monomorphisation error in Futhark nightly.
+module Multiplication = mul i64
+module Product = input_filter Multiplication {def pred (x:i64) = x > 0}
 entry compare_filters (xs:[]i64) : (i64,i64,i64) =
   (Inputs.obs (reduce Inputs.op Inputs.ne (map Inputs.gen xs)),
    Output.obs (reduce Output.op Output.ne (map Output.gen xs)),
@@ -15,7 +18,8 @@ entry identity (xs:[]i64) : bool =
   in Sum.obs (Sum.op Inputs.ne s) == Inputs.obs s &&
      Sum.obs (Sum.op s Inputs.ne) == Inputs.obs s
 
-module PositiveCount = input_filter (count {type i=i64}) {def pred (x:i64) = x > 0}
+module Count = count {type i=i64}
+module PositiveCount = input_filter Count {def pred (x:i64) = x > 0}
 entry count_positive (xs:[]i64) =
   PositiveCount.obs (reduce PositiveCount.op PositiveCount.ne (map PositiveCount.gen xs))
 
