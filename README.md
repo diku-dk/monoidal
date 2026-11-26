@@ -16,6 +16,27 @@ through a parameterised module
 functionality is also described in details in Oleg Kiselyov's paper
 [More Fun with Monoids](https://okmij.org/ftp/Algorithms/monoid-fun.pdf).
 
+## Simple JSON queries
+
+The [monoidal_json](lib/github.com/diku-dk/monoidal/monoidal_json.fut) layer
+builds schema-directed queries from the generic monoid combinators. Define
+fields with keys, parsers, and defaults, assemble a schema using `Record.Zero`
+and `Record.Succ`, and construct its parser with `Record.Make`. The resulting
+module's `with_obs` maps successful results to a named record or another value.
+`array_records` feeds parsed records directly into an aggregate monoid.
+
+The [JSON example](lib/github.com/diku-dk/monoidal/json_ex.fut) sums scores for
+records whose `id` is 5. Fields may appear in any order; missing fields use
+defaults, duplicate fields take the last value, and unknown fields or malformed
+values return `#none`. Configured field keys must be distinct.
+
+This is deliberately a restricted JSON fragment: quoted keys contain 1–7 ASCII
+letters, digits, or underscores; whitespace, escapes, and nested field values
+are unsupported. Records must be nonempty, but arrays may be empty. The `nat`
+parser allows leading zeros and wraps on overflow; `number` accepts decimal
+notation with at most 18 digits and no exponent. These parsers do not validate
+the full JSON grammar.
+
 ## Installation
 
 ```
@@ -78,10 +99,16 @@ $ futhark repl lib/github.com/diku-dk/monoidal/monoidal_ex.fut
 
 ## Test Usage
 
-To test the library, run the associated examples, as follows:
+Run the examples and all regression tests:
 ```
-$ futhark test lib/github.com/diku-dk/monoidal/monoidal_ex.fut
+$ make test
 ```
+
+Regression sources and their shared helpers live in
+`lib/github.com/diku-dk/monoidal/test/`. To typecheck the
+suite or run it with the interpreter, use `make test TEST_FLAGS=-t` or
+`make test TEST_FLAGS=-i`. Select the multicore backend with
+`make test BACKEND=multicore`.
 
 ## License
 

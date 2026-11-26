@@ -78,10 +78,25 @@ module type parens = {
 
 -- | Module type representing module combinators for composing monoids.
 module type monoidal = {
+
   module Parens : parens
 
   -- | Monoid for constructing natural numbers. Initial zeros are allowed.
-  module nat   : (Y:numeric) -> monoid with i = u8 with o = Y.t
+  module nat : (Y:numeric) -> monoid with i = u8 with o = Y.t
+
+  -- | Lexically checked nat with the same (value,power) summary and op.
+  -- Power 1 denotes empty input, power 0 invalid input. Accepts only digits.
+  -- Arithmetic wraps: this does NOT check whether the value fits in Y.
+  -- For standard w-bit instances, inputs of w or more digits also fail
+  -- because 10^w wraps to zero, even when those digits are leading zeros.
+  module nat_try : (Y:integral) -> monoid with t = (Y.t,Y.t)
+                                          with i = u8 with o = opt Y.t
+
+  -- | Exact integral parser, at most 20 digits including leading zeros.
+  -- Signed instances accept -?[0-9]+; unsigned instances reject any '-'.
+  -- Supports the standard 8/16/32/64-bit instances, rejecting out-of-range
+  -- values without a floating-point intermediate. No '+' or whitespace.
+  module int_try : (Y:integral) -> monoid with i = u8 with o = opt Y.t
 
   -- | Monoid for constructing floating point values. Initial zeros and trailing
   -- zeros are allowed. The format of floats is flexible. For instance, the
@@ -92,27 +107,63 @@ module type monoidal = {
   -- values are observed as `#none`.
   module float_try : (Y:numeric) -> monoid with i = u8 with o = opt Y.t
 
-  -- | Signed decimal: -?[0-9]+(\.[0-9]+)?, at most 18 digits including
-  -- leading zeros. Accumulates in u64, then converts and scales at observation.
+  -- | Signed decimal: -?[0-9]+(\.[0-9]+)?, at most 18 digits including leading
+  -- zeros. Accumulates in u64, then converts and scales at observation.
   -- Rounding can differ from float. Invalid complete numbers assert.
   module decimal : (Y:numeric) -> monoid with i = u8 with o = Y.t
+
   -- | Total decimal parser: invalid or incomplete numbers observe as #none.
   module decimal_try : (Y:numeric) -> monoid with i = u8 with o = opt Y.t
+
+  -- | First value, or the supplied default for empty input.
+  module singleton : (X : { type t val default:t }) -> monoid with i = X.t
+                                                              with o = X.t
+
+  -- | Validate and aggregate a list of nested values separated by a byte.
+  -- Empty lists are allowed; invalid values and missing/extra separators fail.
+  -- Uses chunk internally. Each valid element is fed directly to A.gen;
+  -- filtering to A.ne does not remove the element's syntactic presence.
+  module separated : (A:monoid) -> { val delimiter:u8 }
+    -> monoid with i=nest u8 (opt A.i) with o=opt A.o
+
+  -- | Total byte-input adapter for heterogeneous one-level paired nesting.
+  module objects : (X:{type t}) -> (Y:{type t})
+    -> (_R:monoid with i=u8 with o=opt X.t)
+    -> (_O:monoid with i=nest u8 (opt X.t) with o=opt Y.t)
+    -> {val left:u8 val right:u8} -> monoid with i=u8 with o=opt Y.t
+
+  -- | Require an enclosing pair at the two ends and parse its body with M.
+  -- No slicing or extra pass: retain the two endpoint bytes in the summary.
+  module enclosed : (X:{type t}) -> (_M:monoid with i=u8 with o=opt X.t)
+    -> {val left:u8 val right:u8} -> monoid with i=u8 with o=opt X.t
+
+  -- | Split at exactly one delimiter (any delimiter byte). Missing or
+  -- repeated delimiters observe as #none. Empty sides are passed to the
+  -- component observations. Components must support all input fragments;
+  -- failure in an unused interpretation must not assert during gen or op.
+  -- Component observation failures are retained, not flattened.
+  module delim_prod : (L:monoid) -> (R:monoid with i = L.i)
+    -> monoid with i = del L.i with o = opt (L.o, R.o)
 
   -- | Integrated raw-fragment/nested-value parsers. A nested value must be
   -- an entire operand: combining it with any nonempty fragment fails.
   module float_nested : (Y:numeric) -> monoid with i = nest u8 Y.t with o = Y.t
-  module float_nested_try : (Y:numeric) -> monoid with i = nest u8 Y.t with o = opt Y.t
+
+  module float_nested_try : (Y:numeric) -> monoid with i = nest u8 Y.t
+                                                  with o = opt Y.t
+
   -- | Decimal's mantissa and nested value share the same 64-bit payload.
-  module decimal_nested : (Y:numeric_bits64) -> monoid with i = nest u8 Y.t with o = Y.t
-  module decimal_nested_try : (Y:numeric_bits64) -> monoid with i = nest u8 Y.t with o = opt Y.t
+  module decimal_nested : (Y:numeric_bits64) -> monoid with i = nest u8 Y.t
+                                                       with o = Y.t
+  module decimal_nested_try : (Y:numeric_bits64) -> monoid with i = nest u8 Y.t
+                                                           with o = opt Y.t
 
   -- | Chunking combinator for creating nested monoids. When `X = chunk M1 M2
   -- D`, `M2` will be treated as an "inner monoid", which consumes elements when
   -- they become available from the "outer monoid" `M1`. The `D.del_ign`
   -- operation specifies a deliminator for the resulting monoid.
-  module chunk : (M1:monoid) -> (M2:monoid with i = del M1.o) -> { val del_ign : u8 -> bool }
-		 -> monoid with i = del M1.i with o = M2.o
+  module chunk : (M1:monoid) -> (M2:monoid with i = del M1.o)
+    -> { val del_ign : u8 -> bool } -> monoid with i = del M1.i with o = M2.o
 
   -- | The summation monoid.
   module sum   : (Y:numeric) -> monoid with i = Y.t with o = Y.t
@@ -133,27 +184,38 @@ module type monoidal = {
   module exists : monoid with i = bool with o = bool
 
   -- | Combinator for parallel composition.
-  module prod  : (M1:monoid) -> (M2:monoid) -> monoid with i = (M1.i,M2.i) with o = (M1.o,M2.o)
+  module prod  : (M1:monoid) -> (M2:monoid)
+    -> monoid with i = (M1.i,M2.i) with o = (M1.o,M2.o)
 
-  -- | Try two total monoids on the same input in parallel.  Observation
-  -- prefers the result from `M1` when both succeed, and otherwise returns
-  -- the successful result from `M2` (or `#none` when both fail).
+  -- | Try two total monoids on the same input in parallel.  Observation prefers
+  -- the result from `M1` when both succeed, and otherwise returns the
+  -- successful result from `M2` (or `#none` when both fail).
   module or : (X:{type t}) -> (M1:monoid with o = opt X.t)
-              -> (M2:monoid with i = M1.i with o = opt X.t)
-              -> monoid with t = (M1.t,M2.t)
-                        with i = M1.i with o = opt X.t
+    -> (M2:monoid with i = M1.i with o = opt X.t)
+    -> monoid with t = (M1.t,M2.t)
+              with i = M1.i with o = opt X.t
 
   -- | Combinator for extending monoid injection.
-  module with_gen : (M: monoid) -> (X:{ type i val gen : i -> M.i }) -> monoid with o = M.o with i = X.i
+  module with_gen : (M: monoid) -> (X:{ type i val gen : i -> M.i })
+                                -> monoid with o = M.o with i = X.i
 
   -- | Combinator for extending monoid projection.
-  module with_obs : (M: monoid) -> (X:{ type o val obs : M.o -> o }) -> monoid with i = M.i with o = X.o
+  module with_obs : (M: monoid) -> (X:{ type o val obs : M.o -> o })
+                                -> monoid with i = M.i with o = X.o
 
-  -- | Filtering
-  module filter : (M: monoid) -> { val pred : M.o -> bool } -> monoid with i = M.i with o = M.o
+  -- | Filtering on observations
+  module filter : (M: monoid) -> { val pred : M.o -> bool }
+                              -> monoid with i = M.i with o = M.o
+
+  -- | Filtering on inputs. For inputs where the predicate returns false, M.ne
+  -- is generated.
+  module input_filter : (M:monoid) -> { val pred : M.i -> bool }
+                                   -> monoid with t = M.t with i = M.i
+                                             with o = M.o
 
   -- | Duplication monoid.
-  module dup  : (X:{type i}) -> (M:monoid with i = (X.i,X.i)) -> monoid with i = X.i with o = M.o
+  module dup  : (X:{type i}) -> (M:monoid with i = (X.i,X.i))
+                             -> monoid with i = X.i with o = M.o
 
   -- | Counting monoid.
   module count : (X:{type i}) -> monoid with i = X.i with o = i64
@@ -183,11 +245,31 @@ module type monoidal = {
                      -> (_M:monoid with i = nest X.raw X.value with o = X.value)
                      -> {val left:u8 -> bool val right:u8 -> bool}
                      -> monoid with i = del X.raw with o = X.value
-
-
 }
 
 module monoidal = {
+
+  module delim_prod (L:monoid) (R:monoid with i = L.i) = {
+    type t = #No (L.t,R.t) | #One (L.t,R.t) | #Fail
+    type i = del L.i
+    type o = opt (L.o,R.o)
+    def ne : t = #No (L.ne,R.ne)
+    def gen (x:i) : t =
+      match x
+      case #E c -> #No (L.gen c,R.gen c)
+      case #Del _ -> #One (L.ne,R.ne)
+    def op (x:t) (y:t) : t =
+      match (x,y)
+      case (#No (a,b), #No (c,d)) -> #No (L.op a c,R.op b d)
+      case (#No (a,_), #One (c,d)) -> #One (L.op a c,d)
+      case (#One (a,b), #No (_,d)) -> #One (a,R.op b d)
+      case _ -> #Fail
+    def obs (x:t) : o =
+      match x
+      case #One (a,b) -> #some (L.obs a,R.obs b)
+      case _ -> #none
+
+  }
   module Parens = {
     -- One slot, supporting nesting depth zero.
     module Zero (E:{type t}) : parens_regions with elem=E.t = {
@@ -325,7 +407,7 @@ module monoidal = {
   def ERR_unbalanced_parentheses = false
 
   module mk_simple_num (X:numeric) (Y: { val op : X.t -> X.t -> X.t val ne : X.t })
-	 : monoid with i = X.t with o = X.t = {
+         : monoid with i = X.t with o = X.t = {
     type t = X.t
     def op = Y.op
     def ne = Y.ne
@@ -341,7 +423,7 @@ module monoidal = {
   module min (X:numeric) = mk_simple_num X { def ne = X.highest def op = (X.min) }
 
   module mk_simple_bool (Y: { val op : bool -> bool -> bool val ne : bool })
-	 : monoid with i = bool with o = bool = {
+         : monoid with i = bool with o = bool = {
     type t = bool
     def op = Y.op
     def ne = Y.ne
@@ -440,8 +522,8 @@ module monoidal = {
       type i = del X.t
       def ERR_gen_expecting_E = false
       def gen (i:del X.t) : X.t =
-	match i case #E x -> x
-		case #Del _ -> assert ERR_gen_expecting_E (([])[0])
+        match i case #E x -> x
+                case #Del _ -> assert ERR_gen_expecting_E (([])[0])
     }
 
   module nestable (M:monoid) : monoid with i = nest M.i M.o with o = M.o = {
@@ -470,13 +552,18 @@ module monoidal = {
     with_obs M { type o = M.o
                  def obs (x:M.o) : o =
                    if X.pred x then x
-		   else M.obs M.ne
+                   else M.obs M.ne
                }
+
+  module input_filter (M:monoid) (X:{val pred:M.i -> bool}) = {
+    open M
+    def gen (x:i) : t = if X.pred x then M.gen x else M.ne
+  }
 
   module dup (X:{ type i }) (M:monoid with i = (X.i,X.i)) : monoid with i = X.i with o = M.o =
     with_gen M { type i = X.i def gen (i:i) = (i,i) }
 
-  module nat (Y:numeric) : monoid with i = u8 with o = Y.t = {
+  module nat (Y:numeric) : monoid with t = (Y.t,Y.t) with i = u8 with o = Y.t = {
     type t = (Y.t,Y.t)
     def ne : t = (Y.i8 0, Y.i8 1)
     def op (x,b1) (y,b2) = Y.((x * b2 + y, b1 * b2))
@@ -484,6 +571,19 @@ module monoidal = {
     def gen (x:i) : t = Y.((u8 x - u8 '0', i8 10))
     type o = Y.t
     def obs (x:t) : o = x.0
+  }
+
+  module nat_try (Y:integral) = {
+    module N = nat Y
+    type t = (Y.t,Y.t)
+    type i = u8
+    type o = opt Y.t
+    def ne : t = N.ne
+    def op = N.op
+    def gen (c:i) : t =
+      if c >= '0' && c <= '9' then N.gen c else (Y.i64 0,Y.i64 0)
+    def obs ((v,p):t) : o =
+      if Y.(p == i64 0 || p == i64 1) then #none else #some v
   }
 
   module assert_failure = {
@@ -509,10 +609,10 @@ module monoidal = {
   module float0 (Y:numeric) (Fail:failure) = {
     -- In #F, f is 10^(-k), where k fractional digits have been consumed.
     type raw_t = #I (bool,Y.t,Y.t)
-	   | #F (bool,Y.t,Y.t,Y.t)
-	   | #P               -- period
-	   | #M               -- minus
-	   | #NE              -- neutral element
+           | #F (bool,Y.t,Y.t,Y.t)
+           | #P               -- period
+           | #M               -- minus
+           | #NE              -- neutral element
     type t = Fail.result raw_t
     type o = Fail.result Y.t
     type i = u8.t
@@ -522,22 +622,22 @@ module monoidal = {
       case (#NE, _) -> Fail.ok b
       case (_, #NE) -> Fail.ok a
       case (#I(s1,x,b1), #I(s2,y,b2)) ->
-	if !s2 then Fail.ok (#I(Y.((s1, x * b2 + y, b1 * b2))))
-	else Fail.fail false #NE
+        if !s2 then Fail.ok (#I(Y.((s1, x * b2 + y, b1 * b2))))
+        else Fail.fail false #NE
       case (#I(s1,x,b1), #F(s2,y,b2,f2)) ->
-	if !s2 then Fail.ok (#F(Y.((s1, x * b2 + y, b1 * b2, f2))))
-	else Fail.fail false #NE
+        if !s2 then Fail.ok (#F(Y.((s1, x * b2 + y, b1 * b2, f2))))
+        else Fail.fail false #NE
       case (#F(s1,x,b1,f1), #I(s2,y,b2)) ->
-	if !s2 then Fail.ok (#F(Y.((s1, x + y * (f1 / b2), b1, f1 / b2))))
-	else Fail.fail false #NE
+        if !s2 then Fail.ok (#F(Y.((s1, x + y * (f1 / b2), b1, f1 / b2))))
+        else Fail.fail false #NE
       case (#I(s,x,b), #P) -> Fail.ok (#F(Y.((s, x, b, u8 1))))
       case (#P, #I(s,x,b)) ->
-	if !s then Fail.ok (#F(Y.((false, x / b, u8 1, u8 1 / b))))
-	else Fail.fail false #NE
+        if !s then Fail.ok (#F(Y.((false, x / b, u8 1, u8 1 / b))))
+        else Fail.fail false #NE
       case (#M, #I(s,x,b)) ->
-	if !s then Fail.ok (#I(true,x,b)) else Fail.fail false #NE
+        if !s then Fail.ok (#I(true,x,b)) else Fail.fail false #NE
       case (#M, #F(s,x,b,f)) ->
-	if !s then Fail.ok (#F(true,x,b,f)) else Fail.fail false #NE
+        if !s then Fail.ok (#F(true,x,b,f)) else Fail.fail false #NE
       case (#M, #P) -> Fail.ok (#F(Y.((true, u8 0, u8 1, u8 1))))
       case (#F _, #P) -> Fail.fail ERR_op_F_and_P_do_not_reduce #NE
       case (#P, #F _) -> Fail.fail ERR_op_P_and_PF_do_not_reduce #NE
@@ -560,7 +660,7 @@ module monoidal = {
       if x == '.' then Fail.ok #P
       else if x == '-' then Fail.ok #M
       else if '0' <= x && x <= '9' then
-	Fail.ok (#I(Y.((false, u8 x - u8 '0', u8 10))))
+        Fail.ok (#I(Y.((false, u8 x - u8 '0', u8 10))))
       else Fail.fail false #NE
   }
 
@@ -736,9 +836,9 @@ module monoidal = {
   }
 
   module chunk (M1: monoid)
-	       (M2: monoid with i = del M1.o)
-	       (X: { val del_ign : u8 -> bool })
-	 : monoid with i = del M1.i with o = M2.o = {
+               (M2: monoid with i = del M1.o)
+               (X: { val del_ign : u8 -> bool })
+         : monoid with i = del M1.i with o = M2.o = {
     type t = #A M1.t | #C (M1.t, M2.t, M1.t) -- chunk
     def ne : t = #A M1.ne
     def m1_to_m2 (x:M1.t) : M2.t = M2.gen (#E(M1.obs x))
@@ -748,14 +848,14 @@ module monoidal = {
       case (#A lx, #C (l,c,r)) -> #C(M1.op lx l,c,r)
       case (#C (lx,cx,rx), #A ly) -> #C(lx,cx,M1.op rx ly)
       case (#C (lx,cx,rx), #C (ly,cy,ry)) ->
-	#C(lx, M2.op cx (M2.op (m1_to_m2(M1.op rx ly)) cy), ry)
+        #C(lx, M2.op cx (M2.op (m1_to_m2(M1.op rx ly)) cy), ry)
     type i = del M1.i
     def gen (i:i) : t =
       match i
       case #E x -> #A (M1.gen x)
       case #Del c ->
-	if X.del_ign c then #A M1.ne
-	else #C (M1.ne, M2.gen (#Del c), M1.ne)
+        if X.del_ign c then #A M1.ne
+        else #C (M1.ne, M2.gen (#Del c), M1.ne)
     type o = M2.o
     def obs (x:t) : o =
       match x
@@ -825,6 +925,137 @@ module monoidal = {
       case #A (_,x) -> M2.obs x
       case #Closed x -> M2.obs x
       case _ -> assert ERR_unbalanced_parentheses (M2.obs M2.ne)
+  }
+
+  module int_try (Y:integral) = {
+    type raw = {m:u64,p:u64,n:i64,sign:bool,negative:bool}
+    type t = opt raw
+    type i = u8
+    type o = opt Y.t
+    def signed = Y.(lowest < i64 0)
+    def empty : raw = {m=0,p=1,n=0,sign=false,negative=false}
+    def ne : t = #some empty
+    def gen (c:i) : t =
+      if c == '-' then
+        if signed then #some (empty with sign=true with negative=true) else #none
+      else if c >= '0' && c <= '9' then
+        #some {m=u64.u8 (c-'0'),p=10,n=1,sign=false,negative=false}
+      else #none
+    def op (x:t) (y:t) : t =
+      match (x,y)
+      case (#some a,#some b) ->
+        let n = a.n+b.n
+        in if n > 20 || (b.sign && (a.sign || a.n > 0)) then #none
+        -- p=0 denotes 10^20, which does not fit in u64. A 20-digit
+        -- right fragment can only follow a zero-digit left fragment.
+        else if b.p != 0 && a.m > (u64.highest-b.m) / b.p then #none
+        else #some {m=if b.p == 0 then b.m else a.m*b.p+b.m,
+                    p=if n == 20 then 0 else a.p*b.p,n=n,
+                    sign=a.sign || b.sign,negative=a.negative || b.negative}
+      case _ -> #none
+    def obs (x:t) : o =
+      match x
+      case #some a ->
+        let limit = if a.negative then 0u64-u64.i64 (Y.to_i64 Y.lowest)
+                    else u64.i64 (Y.to_i64 Y.highest)
+        in if a.n == 0 || a.m > limit then #none
+           else #some (if a.negative then Y.neg (Y.u64 a.m) else Y.u64 a.m)
+      case _ -> #none
+  }
+
+  module singleton (X:{type t val default:t}) = {
+    type t = opt X.t
+    type i = X.t
+    type o = X.t
+    def ne : t = #none
+    def gen (x:i) : t = #some x
+    def op (x:t) (y:t) : t = match x case #some _ -> x case _ -> y
+    def obs (x:t) : o = match x case #some v -> v case _ -> X.default
+  }
+
+  module separated (A:monoid) (D:{val delimiter:u8}) = {
+    module Element = {
+      type t = #Empty | #One A.i | #Fail
+      type i = opt A.i
+      type o = opt A.i
+      def ne : t = #Empty
+      def gen (x:i) : t = match x case #some v -> #One v case _ -> #Fail
+      def op (x:t) (y:t) : t = match (x,y)
+        case (#Empty,_) -> y
+        case (_,#Empty) -> x
+        case _ -> #Fail
+      def obs (x:t) : o = match x case #One v -> #some v case _ -> #none
+    }
+    module Aggregate = {
+      type t = opt A.t
+      type i = del Element.o
+      type o = opt A.o
+      def ne : t = #some A.ne
+      def gen (x:i) : t = match x
+        case #Del _ -> ne
+        case #E (#some v) -> #some (A.gen v)
+        case _ -> #none
+      def op (x:t) (y:t) : t = match (x,y)
+        case (#some a,#some b) -> #some (A.op a b)
+        case _ -> #none
+      def obs (x:t) : o = match x case #some a -> #some (A.obs a) case _ -> #none
+    }
+    module Chunks = chunk Element Aggregate {def del_ign (_:u8) = false}
+    -- Distinguish the empty list from a list with an empty element.
+    type t = opt Chunks.t
+    type i = nest u8 (opt A.i)
+    type o = opt A.o
+    def ne : t = #none
+    def gen (x:i) : t = #some (Chunks.gen (match x
+      case #Nested v -> #E v
+      case #Raw c -> if c == D.delimiter then #Del c else #E #none))
+    def op (x:t) (y:t) : t = match (x,y)
+      case (#none,_) -> y
+      case (_,#none) -> x
+      case (#some a,#some b) -> #some (Chunks.op a b)
+    def obs (x:t) : o = match x
+      case #none -> #some (A.obs A.ne)
+      case #some a -> Chunks.obs a
+  }
+
+  module objects (X:{type t}) (Y:{type t})
+    (R:monoid with i=u8 with o=opt X.t)
+    (O:monoid with i=nest u8 (opt X.t) with o=opt Y.t)
+    (D:{val left:u8 val right:u8}) = {
+    module P = parens R O {
+      def left (c:u8) = c == D.left
+      def right (c:u8) = c == D.right
+    }
+    type t = P.t
+    type i = u8
+    type o = opt Y.t
+    def ne : t = assert (D.left != D.right) P.ne
+    def op = P.op
+    def gen (c:i) : t = P.gen (if c == D.left || c == D.right then #Del c else #E c)
+    def obs (x:t) : o = assert (D.left != D.right) (match x
+      case #A (_,s) -> O.obs s
+      case #Closed s -> O.obs s
+      case _ -> #none)
+  }
+
+  module enclosed (X:{type t}) (M:monoid with i=u8 with o=opt X.t)
+    (D:{val left:u8 val right:u8}) = {
+    type t = #Empty | #Single u8 | #Ends (u8,M.t,u8)
+    type i = u8
+    type o = opt X.t
+    def ne : t = #Empty
+    def gen (c:i) : t = #Single c
+    def op (x:t) (y:t) : t = match (x,y)
+      case (#Empty,_) -> y
+      case (_,#Empty) -> x
+      case (#Single a,#Single b) -> #Ends (a,M.ne,b)
+      case (#Single a,#Ends (b,s,c)) -> #Ends (a,M.op (M.gen b) s,c)
+      case (#Ends (a,s,b),#Single c) -> #Ends (a,M.op s (M.gen b),c)
+      case (#Ends (a,s,b),#Ends (c,t,d)) ->
+        #Ends (a,M.op s (M.op (M.gen b) (M.op (M.gen c) t)),d)
+    def obs (x:t) : o = match x
+      case #Ends (a,s,b) -> if a == D.left && b == D.right then M.obs s else #none
+      case _ -> #none
   }
 
   module parens_hom (X:{type raw type value})
