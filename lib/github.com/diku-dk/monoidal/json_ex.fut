@@ -32,7 +32,9 @@ module QuotedKey = J.quoted_key
 
 -- Rejected valid records generate the sum's neutral element, zero.
 -- Invalid records still fail; separators are checked even for rejected rows.
-module Scores = M.input_filter (M.with_gen (M.sum f64) {
+-- Name the numeric instance to avoid a nightly monomorphisation bug.
+module ScoreSum = M.sum f64
+module Scores = M.input_filter (M.with_gen ScoreSum {
   type i = Record.v
   def gen (r:i) = r.score
 }) {def pred (r:Record.v) = r.id == 5}
