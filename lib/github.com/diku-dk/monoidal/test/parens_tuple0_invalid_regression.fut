@@ -1,0 +1,14 @@
+import "parens_tuple_testing"
+import "../monoidal"
+module P = monoidal.Parens.Make X M R0 D
+entry main (xs:[]u8) = P.obs (reduce P.op P.ne
+  (map (\c -> P.gen (if c=='(' || c==')' then #Del c else #E c)) xs))
+-- ==
+-- input { "(" } error: .*
+-- input { ")" } error: .*
+-- input { "()" } error: .*
+-- input { "(ab)" } error: .*
+-- input { "a(b)a" } error: .*
+-- input { "(a)(b)" } error: .*
+-- input { "a)b(" } error: .*
+-- input { "(a)" } error: .*

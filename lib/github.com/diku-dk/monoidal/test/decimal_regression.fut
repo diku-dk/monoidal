@@ -1,0 +1,43 @@
+import "decimal_testing"
+entry main = parse
+
+-- ==
+-- entry: main
+-- input { "-12.034" }
+-- output { true -12.034f64 }
+-- input { "0012.500" }
+-- output { true 12.5f64 }
+-- input { "0" }
+-- output { true 0f64 }
+-- input { "-123456789012345678" }
+-- output { true -123456789012345678f64 }
+-- input { "0.12345678901234567" }
+-- output { true 0.12345678901234567f64 }
+-- input { "999999999999999999" }
+-- output { true 999999999999999999f64 }
+-- input { "0000000000000000000" }
+-- output { false 0f64 }
+-- input { "1234567890123456789" }
+-- output { false 0f64 }
+-- input { "" }
+-- output { false 0f64 }
+-- input { "-" }
+-- output { false 0f64 }
+-- input { "-." }
+-- output { false 0f64 }
+-- input { ".5" }
+-- output { false 0f64 }
+-- input { "5." }
+-- output { false 0f64 }
+-- input { "1.2.3" }
+-- output { false 0f64 }
+-- input { "1-2" }
+-- output { false 0f64 }
+-- input { "--12" }
+-- output { false 0f64 }
+-- input { "+12" }
+-- output { false 0f64 }
+-- input { "1e2" }
+-- output { false 0f64 }
+-- input { " 12" }
+-- output { false 0f64 }

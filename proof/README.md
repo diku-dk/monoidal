@@ -69,6 +69,26 @@ this parser rejects `.23` and `12.` at observation. `decimal_try` returns
 successful optional output (`Some None` for rejection), whereas `decimal`
 models its assertion failure with outer `None`.
 
+`enclosed.v` follows the `Empty`/`Single`/`Ends` representation. Its
+`pieces` list describes the optimized loop's zero to three actual operands;
+appending one byte performs just one inner operation. It proves the monoid
+laws assuming `IsMonoid M`, and `op_reference_equivalent` proves equality
+with the former unconditional three-call operator on every summary.
+`fold_reference_equivalent` and `observation_unchanged` extend that equality
+to arbitrary input sequences. No laws on generation or observation are needed.
+
+`separated.v` models the direct alternating-sequence representation:
+`Some Empty`, `Some (Seq first aggregate last)`, and `None` for `#Fail`.
+The flags distinguish elements from delimiters; even an element whose
+aggregate contribution is neutral retains its syntactic presence.
+`separated_is_monoid` proves the laws on all summaries, without a consistency
+invariant. Separately, `fold_characterisation` relates nonempty summaries to
+an inductive grammar for alternating tokens; `accepted_observation` proves
+the ordered aggregate, and `rejected_observation` proves rejection outside
+that grammar. Empty input observes the aggregate identity. Both developments
+use option-valued observation to model parsing/observation failure, with
+abstract byte types and delimiter predicates. Neither adds axioms or admissions.
+
 `chunk.v` follows Futhark's `A`/`C` chunk-summary representation and its
 `m1_to_m2`, operation, generator, and observation. An outer `option` makes
 failure during inner observation absorbing. `ChunkMonoid.chunk_is_monoid`

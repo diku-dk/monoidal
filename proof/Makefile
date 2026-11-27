@@ -91,6 +91,8 @@ Parens_n.vo: Parens_n.v Monoid.vo Parens.vo PullArray.vo IndexedReplay.vo Delimi
 	rocq compile Parens_n.v
 
 clean:
+	rm -f enclosed.glob enclosed.vo enclosed.vok enclosed.vos .enclosed.aux
+	rm -f separated.glob separated.vo separated.vok separated.vos .separated.aux
 	rm -f decimal.glob decimal.vo decimal.vok decimal.vos .decimal.aux
 	rm -f Delimiter.glob Delimiter.vo Delimiter.vok Delimiter.vos .Delimiter.aux ParensTupleDirect.glob ParensTupleDirect.vo ParensTupleDirect.vok ParensTupleDirect.vos .ParensTupleDirect.aux
 	rm -f ParensTupleProof.glob ParensTupleProof.vo ParensTupleProof.vok ParensTupleProof.vos .ParensTupleProof.aux
@@ -118,3 +120,12 @@ clean:
 	      Parens_n.glob Parens_n.vo Parens_n.vok Parens_n.vos .Parens_n.aux
 	rm -f PullArray.glob PullArray.vo PullArray.vok PullArray.vos .PullArray.aux
 	rm -f parens_hom.glob parens_hom.vo chunk2.glob chunk2.vo
+
+# JSON-facing structural combinators.
+all: enclosed.vo separated.vo
+
+enclosed.vo: enclosed.v Monoid.vo
+	rocq compile enclosed.v
+
+separated.vo: separated.v Monoid.vo Parens.vo
+	rocq compile separated.v

@@ -55,4 +55,5 @@ jobs:
 
     - run: make -C util
 
-    - run: futhark bench lib
+    # Regression cases are correctness tests, not performance workloads.
+    - run: futhark bench --ignore-files='/test/' lib
