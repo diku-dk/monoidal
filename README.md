@@ -18,17 +18,102 @@ functionality is also described in details in Oleg Kiselyov's paper
 
 ## Simple JSON queries
 
-The [monoidal_json](lib/github.com/diku-dk/monoidal/monoidal_json.fut) layer
-builds schema-directed queries from the generic monoid combinators. Define
-fields with keys, parsers, and defaults, assemble a schema using `Record.Zero`
-and `Record.Succ`, and construct its parser with `Record.Make`. The resulting
-module's `with_obs` maps successful results to a named record or another value.
-`array_records` feeds parsed records directly into an aggregate monoid.
+The [monoidal_json.fut](lib/github.com/diku-dk/monoidal/monoidal_json.fut)
+library builds on the functionality of
+[monoidal.fut](lib/github.com/diku-dk/monoidal/monoidal.fut). Its JSON-specific
+combinators describe supported fields, records, and arrays; the generic monoidal
+combinators provide projection, filtering, and aggregation. Parsing and
+aggregation are composed into a single reduction over the input bytes.
 
-The [JSON example](lib/github.com/diku-dk/monoidal/json_ex.fut) sums scores for
-records whose `id` is 5. Fields may appear in any order; missing fields use
-defaults, duplicate fields take the last value, and unknown fields or malformed
-values return `#none`. Configured field keys must be distinct.
+For example, the following query sums `score` for records whose `id` is 5:
+
+```json
+[{"id":5,"score":8.25},{"id":2,"score":2.0},{"id":5,"score":2.25}]
+```
+
+The result is `10.5`. The query in
+[json_ex.fut](lib/github.com/diku-dk/monoidal/json_ex.fut) is constructed as follows:
+
+```futhark
+import "monoidal"
+import "monoidal_json"
+module M = monoidal
+module J = monoidal_json
+
+-- Convert the schema's nested tuple to a named record at observation.
+type row = {id:u64,score:f64}
+module Record = {
+  local module Id = J.field {type t=u64} J.nat {
+    def key = J.Key.pack "id"
+    def default = 0u64
+  }
+  local module Score = J.field {type t=f64} J.number {
+    def key = J.Key.pack "score"
+    def default = 0f64
+  }
+  local module Fields = J.Record.Succ Id (J.Record.Succ Score J.Record.Zero)
+  local module Parsed = J.Record.Make Fields
+  open Parsed.with_obs {
+    type o = row
+    def obs ((id,(score,())):Fields.v) : o = {id,score}
+  }
+}
+module ScoreSum = M.sum f64
+module ProjectedScores = M.with_gen ScoreSum {
+  type i = Record.v
+  def gen (r:i) = r.score
+}
+module Scores = M.input_filter ProjectedScores {def pred (r:Record.v) = r.id == 5}
+module Query = J.array_records Record Scores
+
+def query (xs:[]u8) : opt f64 =
+  Query.obs (reduce Query.op Query.ne (map Query.gen xs))
+```
+
+`Record.Zero` and `Record.Succ` assemble the field schema, `Record.Make`
+constructs the parser, and its `with_obs` converts the tuple into a named record.
+`input_filter` makes valid records with other IDs contribute the sum's neutral
+element, zero. Invalid records still cause the query to fail. The query returns
+`#some sum` on success and `#none` on malformed input; the example's `main` entry
+point exposes this as `(true, sum)` or `(false, 0)`.
+
+### Running the example
+
+From the repository root, compile the supplied example with the sequential C
+backend and create a small input file. Use `printf` to avoid a trailing newline,
+since this restricted parser does not accept whitespace:
+
+```sh
+futhark c -o /tmp/json_ex lib/github.com/diku-dk/monoidal/json_ex.fut
+printf '%s' '[{"id":5,"score":8.25},{"id":2,"score":2.0},{"id":5,"score":2.25}]' > /tmp/id-score.json
+jq -Rs . < /tmp/id-score.json | futhark dataset --binary | /tmp/json_ex
+```
+
+This prints:
+
+```text
+true
+10.5f64
+```
+
+Here `jq -Rs .` encodes the file contents as a string, and `futhark dataset`
+converts that string to a binary `[]u8`. This only wraps the input bytes;
+`json_ex` performs the JSON parsing and query evaluation.
+
+For multicore execution, compile with `futhark multicore` and choose the number
+of workers:
+
+```sh
+futhark multicore -o /tmp/json_ex_mc lib/github.com/diku-dk/monoidal/json_ex.fut
+jq -Rs . < /tmp/id-score.json | futhark dataset --binary |
+  /tmp/json_ex_mc --num-threads 4
+```
+
+### Supported fragment
+
+Fields may appear in any order. Missing fields use their configured defaults;
+duplicate fields take the last value. Unknown fields or malformed values cause
+failure, and configured field keys must be distinct.
 
 This is deliberately a restricted JSON fragment: quoted keys contain 1–7 ASCII
 letters, digits, or underscores; whitespace, escapes, and nested field values
