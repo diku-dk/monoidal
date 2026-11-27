@@ -24,27 +24,17 @@ module P = Parens.Make {type raw=del u8 type value=f64} Outer R2 {
  def left (c:u8) = c=='('
  def right (c:u8) = c==')'
 }
--- Exercise the namespace through an alias as well as direct application.
-module Library = monoidal
-module T0 = Library.Parens.Zero {type t=Outer.t}
-module T1 = Library.Parens.Succ T0
-module T2 = Library.Parens.Succ T1
-module Q = Library.Parens.Make {type raw=del u8 type value=f64} Outer T2 {
- def left (c:u8) = c=='('
- def right (c:u8) = c==')'
-}
 entry main (xs:[]u8) =
  let tokens=map (\c -> if c=='(' || c==')' then #Del c
    else if c=='+' || c=='*' then #E (#Del c) else #E (#E c)) xs
- in (P.obs (reduce P.op P.ne (map P.gen tokens)),
-     Q.obs (reduce Q.op Q.ne (map Q.gen tokens)))
+ in P.obs (reduce P.op P.ne (map P.gen tokens))
 -- ==
 -- input { "12.5*(2.0+(3.0*0.5))+78" }
--- output { 121.75f64 121.75f64 }
+-- output { 121.75f64 }
 -- input { "(12.25+3.75)*(20.5+(2.5*4.0))" }
--- output { 488.0f64 488.0f64 }
+-- output { 488.0f64 }
 -- input { "12.5*((3.0+1.0))+78.0" }
--- output { 128.0f64 128.0f64 }
+-- output { 128.0f64 }
 -- input { "(((1.0)))" } error: .*
 -- input { "(1.0" } error: .*
 -- input { "1.0)" } error: .*

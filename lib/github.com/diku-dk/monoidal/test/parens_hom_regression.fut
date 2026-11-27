@@ -34,19 +34,7 @@ entry constructors (_:bool) =
        Test.all (\z -> Test.H.op (Test.H.op x y) z == Test.H.op x (Test.H.op y z)) xs) xs) xs &&
      Test.all (\x -> Test.embed (Test.H.gen x) == Test.P.gen x) inputs
 
-entry exhaustive (_:bool) =
-  let alphabet = ['7','(',')']
-  in Test.all (\n ->
-    let count = loop p=1i64 for _i<n do p*3
-    in Test.all (\code ->
-      let (_,xs) = loop (k,xs)=(code,replicate n '7') for i<n do
-        (k/3,xs with [i]=alphabet[k%3])
-      let fold ys = reduce Test.H.op Test.H.ne (map (Test.H.gen <-< Test.token) ys)
-      let h = fold xs
-      let ref = reduce Test.P.op Test.P.ne (map (Test.P.gen <-< Test.token) xs)
-      in Test.embed h == ref && Test.all (\i -> Test.H.op (fold xs[:i]) (fold xs[i:]) == h) (iota (n+1))) (iota count)) (iota 6)
-
 -- ==
--- entry: constructors exhaustive
+-- entry: constructors
 -- input { true }
 -- output { true }

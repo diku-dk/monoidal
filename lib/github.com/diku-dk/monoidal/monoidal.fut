@@ -121,7 +121,7 @@ module type monoidal = {
 
   -- | Validate and aggregate a list of nested values separated by a byte.
   -- Empty lists are allowed; invalid values and missing/extra separators fail.
-  -- Uses chunk internally. Each valid element is fed directly to A.gen;
+  -- Endpoint flags validate alternation. Valid elements feed A.gen;
   -- filtering to A.ne does not remove the element's syntactic presence.
   module separated : (A:monoid) -> { val delimiter:u8 }
     -> monoid with i=nest u8 (opt A.i) with o=opt A.o
@@ -250,16 +250,19 @@ module type monoidal = {
 module monoidal = {
 
   module delim_prod (L:monoid) (R:monoid with i = L.i) = {
-    type t = #No (L.t,R.t) | #One (L.t,R.t) | #Fail
+    -- Keep empty fragments explicit to avoid invoking either operand operator.
+    type t = #Empty | #No (L.t,R.t) | #One (L.t,R.t) | #Fail
     type i = del L.i
     type o = opt (L.o,R.o)
-    def ne : t = #No (L.ne,R.ne)
+    def ne : t = #Empty
     def gen (x:i) : t =
       match x
       case #E c -> #No (L.gen c,R.gen c)
       case #Del _ -> #One (L.ne,R.ne)
     def op (x:t) (y:t) : t =
       match (x,y)
+      case (#Empty, _) -> y
+      case (_, #Empty) -> x
       case (#No (a,b), #No (c,d)) -> #No (L.op a c,R.op b d)
       case (#No (a,_), #One (c,d)) -> #One (L.op a c,d)
       case (#One (a,b), #No (_,d)) -> #One (a,R.op b d)
@@ -974,48 +977,26 @@ module monoidal = {
   }
 
   module separated (A:monoid) (D:{val delimiter:u8}) = {
-    module Element = {
-      type t = #Empty | #One A.i | #Fail
-      type i = opt A.i
-      type o = opt A.i
-      def ne : t = #Empty
-      def gen (x:i) : t = match x case #some v -> #One v case _ -> #Fail
-      def op (x:t) (y:t) : t = match (x,y)
-        case (#Empty,_) -> y
-        case (_,#Empty) -> x
-        case _ -> #Fail
-      def obs (x:t) : o = match x case #One v -> #some v case _ -> #none
-    }
-    module Aggregate = {
-      type t = opt A.t
-      type i = del Element.o
-      type o = opt A.o
-      def ne : t = #some A.ne
-      def gen (x:i) : t = match x
-        case #Del _ -> ne
-        case #E (#some v) -> #some (A.gen v)
-        case _ -> #none
-      def op (x:t) (y:t) : t = match (x,y)
-        case (#some a,#some b) -> #some (A.op a b)
-        case _ -> #none
-      def obs (x:t) : o = match x case #some a -> #some (A.obs a) case _ -> #none
-    }
-    module Chunks = chunk Element Aggregate {def del_ign (_:u8) = false}
-    -- Distinguish the empty list from a list with an empty element.
-    type t = opt Chunks.t
+    -- Retain endpoint kinds to validate each concatenation boundary.
+    -- true denotes an element; false denotes a delimiter.
+    type t = #Empty | #Fail | #Seq (bool,A.t,bool)
     type i = nest u8 (opt A.i)
     type o = opt A.o
-    def ne : t = #none
-    def gen (x:i) : t = #some (Chunks.gen (match x
-      case #Nested v -> #E v
-      case #Raw c -> if c == D.delimiter then #Del c else #E #none))
+    def ne : t = #Empty
+    def gen (x:i) : t = match x
+      case #Nested (#some v) -> #Seq (true,A.gen v,true)
+      case #Raw c -> if c == D.delimiter then #Seq (false,A.ne,false) else #Fail
+      case _ -> #Fail
     def op (x:t) (y:t) : t = match (x,y)
-      case (#none,_) -> y
-      case (_,#none) -> x
-      case (#some a,#some b) -> #some (Chunks.op a b)
+      case (#Empty,_) -> y
+      case (_,#Empty) -> x
+      case (#Seq (a,s,b),#Seq (c,t,d)) ->
+        if b == c then #Fail else #Seq (a,A.op s t,d)
+      case _ -> #Fail
     def obs (x:t) : o = match x
-      case #none -> #some (A.obs A.ne)
-      case #some a -> Chunks.obs a
+      case #Empty -> #some (A.obs A.ne)
+      case #Seq (true,s,true) -> #some (A.obs s)
+      case _ -> #none
   }
 
   module objects (X:{type t}) (Y:{type t})
@@ -1059,8 +1040,12 @@ module monoidal = {
           case #Empty -> (M.ne,M.ne,0u8)
         -- Keep one call site for the inner op: inlining it into every
         -- constructor branch causes code expansion for nested parsers.
-        let middle = loop acc=sx for i < 3 do
-          M.op acc (if i == 0 then bx else if i == 1 then ay else sy)
+        -- Single-byte summaries contribute no inner pieces. In particular,
+        -- appending a byte needs only one inner op, not two neutral calls.
+        let nx = match x case #Ends _ -> 1i64 case _ -> 0i64
+        let ny = match y case #Ends _ -> 2i64 case _ -> 0i64
+        let middle = loop acc=sx for i < nx+ny do
+          M.op acc (if i < nx then bx else if i == nx then ay else sy)
         in #Ends (a,middle,b)
     def obs (x:t) : o = match x
       case #Ends (a,s,b) -> if a == D.left && b == D.right then M.obs s else #none

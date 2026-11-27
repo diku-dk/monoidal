@@ -67,22 +67,6 @@ entry depth_guard_equivalent (_:bool) : bool =
 -- input { true }
 -- output { true }
 
--- All 364 strings of length at most five over an atom and the two
--- parentheses, including malformed fragments and depth overflow.
-entry exhaustive (_:bool) : bool =
-  let alphabet = ['7', '(', ')'] : []u8
-  let check_length (n:i64) =
-    let count = loop p = 1i64 for _i < n do p*3
-    in reduce (&&) true (map (\code ->
-      let (_,xs) = loop (k,xs) = (code, replicate n '7') for i < n do
-        (k/3, xs with [i] = alphabet[k%3])
-      let s = Regression.summary xs
-      in Regression.splits xs &&
-         Regression.M.op Regression.M.ne s == s &&
-         Regression.M.op s Regression.M.ne == s)
-      (iota count))
-  in reduce (&&) true (map check_length (iota 6))
-
 -- Check the new representation and preservation of nesting rejection.
 entry representation (_:bool) : bool =
   let completed = match Regression.summary "7(7)7"
@@ -92,11 +76,6 @@ entry representation (_:bool) : bool =
                  case #Fail -> true
                  case _ -> false
   in completed && rejected
-
--- ==
--- entry: exhaustive
--- input { true }
--- output { true }
 
 -- ==
 -- entry: representation

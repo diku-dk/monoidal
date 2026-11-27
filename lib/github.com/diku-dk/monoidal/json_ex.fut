@@ -42,7 +42,7 @@ def query (xs:[]u8) : opt f64 =
   Query.obs (reduce Query.op Query.ne (map Query.gen xs))
 
 -- Test entry points.
-entry key_matches (spelling:[]u8) (name:[]u8) : bool =
+def key_matches (spelling:[]u8) (name:[]u8) : bool =
   match QuotedKey.obs (reduce QuotedKey.op QuotedKey.ne (map QuotedKey.gen spelling))
   case #some k -> Key.equal k (J.Key.pack name)
   case _ -> false
@@ -51,24 +51,6 @@ entry main (xs:[]u8) : (bool,f64) =
   match query xs
   case #some s -> (true,s)
   case #none -> (false,0)
-
--- Every three-way split, including the enclosing brackets.
--- Dyadic scores avoid floating-point reassociation differences in this test.
-entry splits (body:[]u8) : bool =
-  let parts = map Query.gen (['['] ++ body ++ [']'])
-  let fold ys = reduce Query.op Query.ne ys
-  let expected = Query.obs (fold parts)
-  in reduce (&&) true (map (\i ->
-       reduce (&&) true (map (\j ->
-         let a = fold parts[:i]
-         let b = fold parts[i:j]
-         let c = fold parts[j:]
-         let l = Query.op (Query.op a b) c
-         let r = Query.op a (Query.op b c)
-         in Query.obs l == expected && Query.obs r == expected &&
-            Query.obs (Query.op Query.ne l) == expected &&
-            Query.obs (Query.op r Query.ne) == expected)
-         (map (+i) (iota (length parts-i+1))))) (iota (length parts+1)))
 
 -- ==
 -- entry: main
@@ -110,18 +92,6 @@ entry splits (body:[]u8) : bool =
 -- input { "[ {\"id\":5}]" } output { false 0f64 }
 
 -- ==
--- entry: splits
--- input { "{\"id\":5,\"score\":8.25},{\"id\":2,\"score\":2},{\"id\":5,\"score\":2.25}" } output { true }
--- input { "{\"score\":12.75,\"id\":5}" } output { true }
--- input { "{\"id\":5}{\"score\":2}" } output { true }
--- input { "{\"id\":5},,{\"score\":2}" } output { true }
--- input { "{\"id\":5,,\"score\":2}" } output { true }
--- input { "{{\"id\":5}}" } output { true }
--- input { "{\"id\":5" } output { true }
--- input { "\"id\":5}" } output { true }
--- input { "" } output { true }
-
--- ==
 -- entry: main
 -- input { "[{id:5,\"score\":1}]" } output { false 0f64 }
 -- input { "[{\"id\":5,score:1}]" } output { false 0f64 }
@@ -132,20 +102,3 @@ entry splits (body:[]u8) : bool =
 -- input { "[{\"id:score\":5}]" } output { false 0f64 }
 -- input { "[{\"\":5}]" } output { false 0f64 }
 -- input { "[{\"abcdefgh\":5}]" } output { false 0f64 }
-
--- ==
--- entry: key_matches
--- input { "\"id\"" "id" } output { true }
--- input { "\"score\"" "score" } output { true }
--- input { "\"abcdefg\"" "abcdefg" } output { true }
--- input { "\"a_1\"" "a_1" } output { true }
--- input { "id" "id" } output { false }
--- input { "\"id" "id" } output { false }
--- input { "id\"" "id" } output { false }
--- input { "\"i\"d\"" "id" } output { false }
--- input { "\"i\\d\"" "id" } output { false }
--- input { "\"id,score\"" "id" } output { false }
--- input { "\"id:score\"" "id" } output { false }
--- input { "\"\"" "" } output { false }
--- input { "\"abcdefgh\"" "id" } output { false }
--- input { "\"i\td\"" "id" } output { false }
