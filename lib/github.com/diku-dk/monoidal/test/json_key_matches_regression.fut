@@ -17,3 +17,5 @@ entry main = key_matches
 -- input { "\"\"" "" } output { false }
 -- input { "\"abcdefgh\"" "id" } output { false }
 -- input { "\"i\td\"" "id" } output { false }
+
+-- input { "\"long_field_name\"" "long_field_name" } output { true }

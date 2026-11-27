@@ -1,5 +1,5 @@
--- JSON-like array query: quoted ASCII alphanumeric/underscore keys (1--7
--- bytes), no escapes, whitespace, or nested containers. Not full JSON:
+-- JSON-like array query: quoted ASCII alphanumeric/underscore keys (nonempty,
+-- with no explicit length bound), no escapes, whitespace, or nested containers. Not full JSON:
 -- leading-zero numbers are accepted, and ID arithmetic can wrap.
 -- Missing fields default to zero; last duplicate wins; unknown fields fail.
 -- nat_try checks ID digits; IDs are assumed to fit in u64 (overflow wraps).
