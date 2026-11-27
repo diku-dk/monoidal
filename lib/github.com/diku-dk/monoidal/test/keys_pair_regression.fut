@@ -9,4 +9,4 @@ entry main = pair
 -- input { "score:" } output { false 0i64 0f64 }
 -- input { "score5.2" } output { false 0i64 0f64 }
 -- input { "score::5.2" } output { false 0i64 0f64 }
--- input { "abcdefgh:5" } output { false 0i64 0f64 }
+-- input { "abcdefgh:5" } output { true -1i64 5f64 }

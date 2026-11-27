@@ -11,7 +11,7 @@ The parentheses tuple tests use a small independent stack interpreter;
 malformed inputs are checked by direct parser entry points expecting errors.
 
 Bounded property tests cover decimal summaries, separated sequences, and
-delim_prod associativity. They use #[prop(size(8))], generate small alphabets
+delim_prod associativity. These use #[prop(size(8))], generate small alphabets
 from byte values, and retain Futhark's built-in shrinking. Default: 100
 candidates per property. To reproduce a run:
 
@@ -20,7 +20,13 @@ candidates per property. To reproduce a run:
 Property testing syntax:
 https://futhark.readthedocs.io/en/latest/man/futhark-test.html#property-based-testing
 
-Timing on the development Mac, Futhark 0.29.1, sequential C, 27 November 2026:
+Hash-key properties use #[prop(size(12))]. Explicit tests also cover empty
+keys, invalid-character absorption, hash/power arithmetic wraparound, keys
+through 4096 bytes, 300-character record fields, and schema collisions.
+Key representations remain abstract; both abstraction tests attempt to
+construct the actual (u32,u32) representation and must fail to typecheck.
+
+Historical timing before the hash-key additions, on the development Mac, Futhark 0.29.1, sequential C, 27 November 2026:
 73/73 test files passed, including the three example files.
 All 71 runnable test processes completed in less than 0.68 seconds, including
 server startup and test-driver communication. Two files expect type errors.

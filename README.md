@@ -172,12 +172,25 @@ jq -Rs . < /tmp/id-score.json | futhark dataset --binary |
 ### Supported fragment
 
 Fields may appear in any order. Missing fields use their configured defaults;
-duplicate fields take the last value. Unknown fields or malformed values cause
-failure, and configured field keys must be distinct.
+duplicate fields take the last value. Malformed values cause failure. Keys use
+a 32-bit polynomial hash and a 32-bit power, so the parser summary occupies
+eight bytes. For a byte sequence of length `n`, the power is `131^n` modulo
+`2^32`. Concatenation combines `(h,p)` and `(g,q)` as `(h*q+g,p*q)`, with
+wrapping `u32` arithmetic. This operation is associative; `(0,1)` is its
+neutral element. No exponent calculation, table, or explicit length bound is
+needed. Valid powers remain odd, so zero power represents absorbing failure
+for disallowed characters.
 
-This is deliberately a restricted JSON fragment: quoted keys contain 1–7 ASCII
-letters, digits, or underscores; whitespace, escapes, and nested field values
-are unsupported. Records must be nonempty, but arrays may be empty. The `nat`
+`Record.Make` rejects configured keys with identical hash/power pairs,
+including duplicate spellings. This check preserves the existing schema
+interface; it does not rehash keys automatically. Unknown keys normally fail,
+but an unknown spelling that collides with a configured key cannot be
+distinguished from it. Key matching is probabilistic, not cryptographic. For equal-length keys,
+only the 32-bit hash distinguishes their contents; the power is identical.
+
+This is deliberately a restricted JSON fragment: quoted keys are nonempty sequences of
+ASCII letters, digits, or underscores, with no explicit length bound. Whitespace,
+escapes, and nested field values are unsupported. Records must be nonempty, but arrays may be empty. The `nat`
 parser allows leading zeros and wraps on overflow; `number` accepts decimal
 notation with at most 18 digits and no exponent. These parsers do not validate
 the full JSON grammar.

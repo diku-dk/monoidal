@@ -2,13 +2,16 @@
 -- This layer adds quoted keys, statically specified records, and arrays of records to
 -- monoidal. It constructs no general JSON value or syntax tree.
 --
--- JSON-facing quoted keys contain 1--7 ASCII letters, digits, or underscores. No
+-- JSON-facing quoted keys are nonempty sequences of ASCII letters, digits, or
+-- underscores, with no explicit length bound. No
 -- escapes, whitespace, or nested containers are supported. Value syntax and
 -- range checks are determined by the user-supplied total field parsers:
 -- in particular, nat_try accepts leading zeros and wraps on overflow, so
 -- selecting it does not provide strict JSON-number validation.
 -- Records must contain at least one known field. Missing fields use supplied
--- defaults, duplicates take the last value, and unknown/malformed fields fail.
+-- defaults, duplicates take the last value, and malformed fields fail.
+-- Keys use 32-bit hashes and powers: unknown keys normally fail, but a hash
+-- collision can alias a configured key. Schema collisions are rejected.
 -- Empty arrays are valid. Parsing failure is distinct from input filtering.
 import "monoidal"
 
@@ -29,14 +32,14 @@ local module type KeyValue = {
   val default : v
 }
 
--- | Abstract keys containing at most seven bytes.
+-- | Abstract hashed keys with no explicit length bound.
 local module type Key = {
   type t
-  -- | Pack a key constant, asserting that its length is at most seven.
+  -- | Hash a key constant, with no explicit length bound.
   val pack [n] : [n]u8 -> t
-  -- | Compare key contents, including their lengths.
+  -- | Compare 32-bit hashes and powers; collisions are possible.
   val equal : t -> t -> bool
-  -- | Parse an unquoted key. Reject disallowed bytes and excessive length;
+  -- | Parse an unquoted key. Reject disallowed bytes;
   -- empty keys are valid. Rejected bytes are not silently discarded.
   module parser : {val pred:u8 -> bool} -> u8monoid with o=opt t
 }
@@ -75,7 +78,7 @@ module type monoidal_json = {
   -- | Unquoted key parser with a caller-supplied character predicate.
   module packed_key : {val pred:u8 -> bool} ->
     u8monoid with o=opt Key.t
-  -- | A quoted key of 1--7 ASCII letters, digits, or underscores; no escapes.
+  -- | A nonempty quoted ASCII alphanumeric/underscore key; no length bound or escapes.
   module quoted_key : u8monoid with o=opt Key.t
   -- | Unsigned decimal integers. Leading zeros are allowed; overflow wraps.
   -- Empty input, signs, and tokens of 64 or more digits fail.
@@ -101,7 +104,8 @@ module type monoidal_json = {
       (R:record_schema with k=Key.t) ->
       record_schema with k=Key.t with v=(A.v,R.v)
     -- | Parse a nonempty record. Keys may appear in any order; configured
-    -- keys must be distinct. Unknown keys and invalid field values fail.
+    -- keys must have distinct hashes and powers (asserted, including collisions).
+    -- Unknown keys with matching hash and power cannot be distinguished. Invalid values fail.
     module Make : (R:record_schema with k=Key.t) ->
       {include record_parser with v=R.v
        -- | Project successes from both parser views; preserve #none.
@@ -117,35 +121,25 @@ module type monoidal_json = {
     u8monoid with o=opt Aggregate.o
 }
 
--- | Abstract short keys. Construction validates the seven-byte bound.
--- The parser's summary is abstract too, so malformed packed words cannot
--- be injected by clients. Equality does not expose the representation.
+-- | Polynomial hash and power modulo 2^32, with no length bound.
+-- Valid powers are odd; zero represents absorbing failure.
+-- Matching is probabilistic, not a cryptographic comparison of spellings.
 module Key : Key = {
-  type t = u64
-  def pack [n] (xs:[n]u8) : t =
-    assert (length xs <= 7)
-      (u64.i64 (length xs) |
-       reduce (|) 0u64
-         (map (\i -> u64.u8 xs[i] << u64.i64 (8*(i+1)))
-              (iota (length xs))))
+  -- (hash, 131^length), both modulo 2^32: exactly eight bytes.
+  type t = (u32,u32)
+  local def combine ((h,p):t) ((g,q):t) : t =
+    if p == 0 || q == 0 then (0,0) else (h*q+g,p*q)
+  local def byte (c:u8) : t = (u32.u8 c+1,131)
+  def pack [n] (xs:[n]u8) : t = reduce combine (0,1) (map byte xs)
   def equal (x:t) (y:t) = x == y
   module parser (P:{val pred:u8 -> bool}) = {
-    type t = opt u64
+    type t = (u32,u32)
     type i = u8
-    type o = opt u64
-    def ne : t = #some 0u64
-    def gen (c:i) : t =
-      if P.pred c then #some (1u64 | (u64.u8 c << 8u64)) else #none
-    def op (x:t) (y:t) : t =
-      match (x,y)
-      case (#some a, #some b) ->
-        let n = a & 255u64
-        let m = b & 255u64
-        in if n + m > 7 then #none
-           else #some ((n+m) | (((a >> 8u64) |
-                                   ((b >> 8u64) << (8u64*n))) << 8u64))
-      case _ -> #none
-    def obs (x:t) : o = x
+    type o = opt (u32,u32)
+    def ne : t = (0,1)
+    def gen (c:i) : t = if P.pred c then byte c else (0,0)
+    def op = combine
+    def obs ((h,p):t) : o = if p == 0 then #none else #some (h,p)
   }
 }
 
@@ -154,7 +148,7 @@ module monoidal_json = {
   local module M = monoidal
   local open monoidal
 
-  -- | Parse a bare bounded key (no dictionary lookup). Characters failing
+  -- | Parse a bare key (no dictionary lookup). Characters failing
   -- the supplied predicate cause failure, not omission. Empty keys are valid.
   module packed_key = Key.parser
   local module AnyKey = packed_key {def pred (_:u8) = true}
