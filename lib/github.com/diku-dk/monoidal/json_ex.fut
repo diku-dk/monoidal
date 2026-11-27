@@ -34,10 +34,11 @@ module QuotedKey = J.quoted_key
 -- Invalid records still fail; separators are checked even for rejected rows.
 -- Name the numeric instance to avoid a nightly monomorphisation bug.
 module ScoreSum = M.sum f64
-module Scores = M.input_filter (M.with_gen ScoreSum {
+module ProjectedScores = M.with_gen ScoreSum {
   type i = Record.v
   def gen (r:i) = r.score
-}) {def pred (r:Record.v) = r.id == 5}
+}
+module Scores = M.input_filter ProjectedScores {def pred (r:Record.v) = r.id == 5}
 module Query = J.array_records Record Scores
 
 def query (xs:[]u8) : opt f64 =
